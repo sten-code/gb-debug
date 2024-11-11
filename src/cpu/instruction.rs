@@ -1,0 +1,948 @@
+﻿use crate::cpu::register::FlagsRegister;
+
+#[derive(Clone, Copy, Debug)]
+pub enum Source8Bit {
+    A, B, C, D, E, H, L,
+    HLP, N8,
+}
+
+impl Source8Bit {
+    pub fn to_string(&self, byte: u8) -> String {
+        match self {
+            Source8Bit::HLP => "[HL]".to_string(),
+            Source8Bit::N8 => format!("0x{:02X}", byte),
+            _ => format!("{:?}", self)
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum Target8BitReg {
+    A, B, C, D, E, H, L,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum Reg16Bit {
+    BC, DE, HL, SP,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum IncDecTarget {
+    A, B, C, D, E, H, L, HLP,
+    BC, DE, HL, SP,
+}
+
+impl IncDecTarget {
+    pub fn to_string(&self) -> String {
+        match self {
+            IncDecTarget::HLP => "[HL]".to_owned(),
+            _ => format!("{:?}", self)
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Target8Bit {
+    A, B, C, D, E, H, L, HLP,
+}
+
+impl Target8Bit {
+    pub fn to_string(&self) -> String {
+        match self {
+            Target8Bit::HLP => "[HL]".to_string(),
+            _ => format!("{:?}", self)
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq)]
+pub enum JumpTest {
+    NotZero,
+    Zero,
+    NotCarry,
+    Carry,
+    Always,
+}
+
+impl JumpTest {
+    fn to_string(&self) -> String {
+        match self {
+            JumpTest::NotZero => "NZ ".to_owned(),
+            JumpTest::Zero => "Z ".to_owned(),
+            JumpTest::NotCarry => "NC ".to_owned(),
+            JumpTest::Carry => "C ".to_owned(),
+            JumpTest::Always => "".to_owned()
+        }
+    }
+}
+
+impl JumpTest {
+    pub fn condition_from_flags(&self, flags: FlagsRegister) -> bool {
+        match self {
+            JumpTest::NotZero => !flags.zero,
+            JumpTest::Zero => flags.zero,
+            JumpTest::NotCarry => !flags.carry,
+            JumpTest::Carry => flags.carry,
+            JumpTest::Always => true
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub enum DerefTarget {
+    BCP, DEP, HLI, HLD,
+}
+
+impl DerefTarget {
+    fn to_string(&self) -> String {
+        match self {
+            DerefTarget::BCP => "[BC]".to_string(),
+            DerefTarget::DEP => "[DE]".to_string(),
+            DerefTarget::HLI => "[HL+]".to_string(),
+            DerefTarget::HLD => "[HL-]".to_string(),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub enum LoadType {
+    // 8 bit LD instructions
+    Byte(Target8Bit, Target8Bit),
+    ByteFromImm(Target8Bit),
+    AFromDeref(DerefTarget), // LD A, [BC | DE | HL+ | HL-]
+    DerefFromA(DerefTarget), // LD [BC | DE | HL+ | HL-], A
+    AFromCD, // LD A, [0xFF00 + C]
+    CDFromA, // LD [0xFF00 + C], A
+    A8FromA, // LD [0xFF00 + A8], A
+    AFromA8, // LD A, [0xFF00 + A8]
+    A16FromA, // LD [A16], A
+    AFromA16, // LD A, [A16]
+
+    // 16 bit LD instructions
+    WordFromImm(Reg16Bit), // LD (BC | DE | HL | SP), N16
+    SPFromHL, // LD SP, HL
+    HLFromSPE8, // LD HL, SP + E8
+    A16FromSP, // LD [A16], SP
+}
+
+impl LoadType {
+    fn to_string(&self, byte1: u8, byte2: u8) -> String {
+        match self {
+            LoadType::Byte(target, source) => format!("{}, {}", target.to_string(), source.to_string()),
+            LoadType::ByteFromImm(target) => format!("{}, ${:02X}", target.to_string(), byte1),
+            LoadType::AFromDeref(deref) => format!("A, {}", deref.to_string()),
+            LoadType::DerefFromA(deref) => format!("{}, A", deref.to_string()),
+            LoadType::AFromCD => "A, [$FF00 + C]".to_string(),
+            LoadType::CDFromA => "[$FF00 + C], A".to_string(),
+            LoadType::A8FromA => format!("[$FF00 + ${:02X}], A", byte1),
+            LoadType::AFromA8 => format!("A, [$FF00 + ${:02X}]", byte1),
+            LoadType::A16FromA => format!("[${:02X}{:02X}], A", byte2, byte1),
+            LoadType::AFromA16 => format!("A, [${:02X}{:02X}]", byte2, byte1),
+
+            LoadType::WordFromImm(target) => format!("{:?}, ${:02X}{:02X}", target, byte2, byte1),
+            LoadType::SPFromHL => "SP, HL".to_string(),
+            LoadType::HLFromSPE8 => format!("HL, SP {} {}", if (byte1 as i8) >= 0 { "+" } else { "-" }, (byte1 as i8).abs()),
+            LoadType::A16FromSP => format!("[${:02X}{:02X}], SP", byte2, byte1),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum StackTarget {
+    BC, DE, HL, AF,
+}
+
+#[derive(Clone, Copy)]
+pub enum Instruction {
+    // https://rgbds.gbdev.io/docs/v0.6.1/gbz80.7
+
+    // Arithmetic instructions
+    ADC(Source8Bit),
+    ADD(Source8Bit),
+    ADDHL(Reg16Bit),
+    ADDSP,
+
+    AND(Source8Bit),
+    CP(Source8Bit),
+    DEC(IncDecTarget),
+    INC(IncDecTarget),
+    OR(Source8Bit),
+    SBC(Source8Bit),
+    SUB(Source8Bit),
+    XOR(Source8Bit),
+
+    // Bit shift instructions
+    RL(Target8Bit),
+    RLA,
+    RLC(Target8Bit),
+    RLCA,
+    RRC(Target8Bit),
+    RR(Target8Bit),
+    RRA,
+    RRCA,
+    SLA(Target8Bit),
+    SRA(Target8Bit),
+    SWAP(Target8Bit),
+    SRL(Target8Bit),
+
+    // Bit operation instructions
+    BIT(u8, Target8Bit),
+    RES(u8, Target8Bit),
+    SET(u8, Target8Bit),
+
+    // Load instructions
+    LD(LoadType),
+
+    // Jump instructions
+    CALL(JumpTest),
+    JP(JumpTest),
+    JPHL,
+    JR(JumpTest),
+    RET(JumpTest),
+    RETI,
+    RST(u8),
+
+    // Stack instructions
+    POP(StackTarget),
+    PUSH(StackTarget),
+
+    // Misc
+    CCF,
+    CPL,
+    DAA,
+    DI,
+    EI,
+    HALT,
+    NOP,
+    SCF,
+    STOP,
+}
+
+impl Instruction {
+    pub fn size(&self) -> u8 {
+        match self {
+            Instruction::ADC(target) => match target {
+                Source8Bit::N8 => 2,
+                _ => 1
+            },
+            Instruction::ADD(source) => match source {
+                Source8Bit::N8 => 2,
+                _ => 1
+            },
+            Instruction::ADDHL(_) => 1,
+            Instruction::ADDSP => 2,
+            Instruction::AND(target) => match target {
+                Source8Bit::N8 => 2,
+                _ => 1
+            },
+            Instruction::CP(target) => match target {
+                Source8Bit::N8 => 2,
+                _ => 1
+            },
+            Instruction::DEC(_) => 1,
+            Instruction::INC(_) => 1,
+            Instruction::OR(target) => match target {
+                Source8Bit::N8 => 2,
+                _ => 1
+            },
+            Instruction::SBC(target) => match target {
+                Source8Bit::N8 => 2,
+                _ => 1
+            },
+            Instruction::SUB(target) => match target {
+                Source8Bit::N8 => 2,
+                _ => 1
+            },
+            Instruction::XOR(target) => match target {
+                Source8Bit::N8 => 2,
+                _ => 1
+            },
+            Instruction::BIT(_, _) => 2,
+            Instruction::RES(_, _) => 2,
+            Instruction::SET(_, _) => 2,
+            Instruction::RL(_) => 2,
+            Instruction::RLA => 1,
+            Instruction::RLC(_) => 2,
+            Instruction::RLCA => 1,
+            Instruction::RRC(_) => 2,
+            Instruction::RR(_) => 2,
+            Instruction::RRA => 1,
+            Instruction::RRCA => 1,
+            Instruction::SLA(_) => 2,
+            Instruction::SRA(_) => 2,
+            Instruction::SWAP(_) => 2,
+            Instruction::SRL(_) => 2,
+            Instruction::LD(load_type) => match load_type {
+                LoadType::Byte(_, _) => 1,
+                LoadType::ByteFromImm(_) => 2,
+                LoadType::AFromDeref(_) => 1,
+                LoadType::DerefFromA(_) => 1,
+                LoadType::AFromCD => 1,
+                LoadType::CDFromA => 1,
+                LoadType::A8FromA => 2,
+                LoadType::AFromA8 => 2,
+                LoadType::A16FromA => 3,
+                LoadType::AFromA16 => 3,
+
+                LoadType::WordFromImm(_) => 3,
+                LoadType::A16FromSP => 3,
+                LoadType::HLFromSPE8 => 2,
+                _ => 1
+            },
+            Instruction::CALL(_) => 3,
+            Instruction::JP(_) => 3,
+            Instruction::JPHL => 1,
+            Instruction::JR(_) => 2,
+            Instruction::RET(_) => 1,
+            Instruction::RETI => 1,
+            Instruction::RST(_) => 1,
+            Instruction::POP(_) => 1,
+            Instruction::PUSH(_) => 1,
+            Instruction::CCF => 1,
+            Instruction::CPL => 1,
+            Instruction::DAA => 1,
+            Instruction::DI => 1,
+            Instruction::EI => 1,
+            Instruction::HALT => 1,
+            Instruction::NOP => 1,
+            Instruction::SCF => 1,
+            Instruction::STOP => 2
+        }
+    }
+
+    pub fn to_string(&self, byte1: u8, byte2: u8, addr: u16) -> String {
+        match self {
+            Instruction::ADC(target) => format!("ADC  A, {}", target.to_string(byte1)),
+            Instruction::ADD(source) => format!("ADD  A, {}", source.to_string(byte1)),
+            Instruction::ADDHL(source) => format!("ADD  HL, {:?}", source),
+            Instruction::ADDSP => format!("ADD  SP, ${:02X}", byte1),
+            Instruction::AND(target) => format!("AND  A, {}", target.to_string(byte1)),
+            Instruction::CP(target) => format!("CP   A, {}", target.to_string(byte1)),
+            Instruction::DEC(target) => format!("DEC  {}", target.to_string()),
+            Instruction::INC(target) => format!("INC  {}", target.to_string()),
+            Instruction::OR(target) => format!("OR   A, {}", target.to_string(byte1)),
+            Instruction::SBC(target) => format!("SBC  A, {}", target.to_string(byte1)),
+            Instruction::SUB(target) => format!("SUB  A, {}", target.to_string(byte1)),
+            Instruction::XOR(target) => format!("XOR  A, {}", target.to_string(byte1)),
+            Instruction::BIT(bit, target) => format!("BIT  {}, {}", bit, target.to_string()),
+            Instruction::RES(bit, target) => format!("RES  {}, {}", bit, target.to_string()),
+            Instruction::SET(bit, target) => format!("SET  {}, {}", bit, target.to_string()),
+            Instruction::RL(target) => format!("RL   {}", target.to_string()),
+            Instruction::RLA => "RLA".to_owned(),
+            Instruction::RLC(target) => format!("RLC  {}", target.to_string()),
+            Instruction::RLCA => "RLCA".to_owned(),
+            Instruction::RRC(target) => format!("RRC  {}", target.to_string()),
+            Instruction::RR(target) => format!("RR   {}", target.to_string()),
+            Instruction::RRA => "RRA".to_owned(),
+            Instruction::RRCA => "RRCA".to_owned(),
+            Instruction::SLA(target) => format!("SLA  {}", target.to_string()),
+            Instruction::SRA(target) => format!("SRA  {}", target.to_string()),
+            Instruction::SWAP(target) => format!("SWAP {}", target.to_string()),
+            Instruction::SRL(target) => format!("SRL  {}", target.to_string()),
+            Instruction::LD(load_type) => format!("LD   {}", load_type.to_string(byte1, byte2)),
+            Instruction::CALL(test) => format!("CALL {} ${:02X}{:02X}", test.to_string(), byte2, byte1),
+            Instruction::JP(test) => format!("JP   {} ${:02X}{:02X}", test.to_string(), byte2, byte1),
+            Instruction::JPHL => "JP HL".to_owned(),
+            Instruction::JR(test) => {
+                format!("JR   {}${:02X} ({}{}) (${:04X})", test.to_string(), byte1, if byte1 as i8 >= 0 { "+" } else { "" }, byte1 as i8, if byte1 as i8 >= 0 {
+                    addr.wrapping_add(2).wrapping_add((byte1 as i8) as u16)
+                } else {
+                    addr.wrapping_add(2).wrapping_sub((byte1 as i8 as i16).abs() as u16)
+                })
+            }
+            Instruction::RET(test) => format!("RET  {}", test.to_string()),
+            Instruction::RETI => "RETI".to_owned(),
+            Instruction::RST(addr) => format!("RST  ${:02X}", addr),
+            Instruction::POP(target) => format!("POP  {:?}", target),
+            Instruction::PUSH(target) => format!("PUSH {:?}", target),
+            Instruction::CCF => "CCF".to_owned(),
+            Instruction::CPL => "CPL".to_owned(),
+            Instruction::DAA => "DAA".to_owned(),
+            Instruction::DI => "DI".to_owned(),
+            Instruction::EI => "EI".to_owned(),
+            Instruction::HALT => "HALT".to_owned(),
+            Instruction::NOP => "NOP".to_owned(),
+            Instruction::SCF => "SCF".to_owned(),
+            Instruction::STOP => "STOP".to_owned(),
+        }
+    }
+
+    pub fn from_byte(byte: u8, prefixed: bool) -> Option<Instruction> {
+        if prefixed {
+            Some(Instruction::from_byte_prefixed(byte))
+        } else {
+            Instruction::from_byte_not_prefixed(byte)
+        }
+    }
+
+    fn from_byte_prefixed(byte: u8) -> Instruction {
+        match byte {
+            0x00 => Instruction::RLC(Target8Bit::B),
+            0x01 => Instruction::RLC(Target8Bit::C),
+            0x02 => Instruction::RLC(Target8Bit::D),
+            0x03 => Instruction::RLC(Target8Bit::E),
+            0x04 => Instruction::RLC(Target8Bit::H),
+            0x05 => Instruction::RLC(Target8Bit::L),
+            0x06 => Instruction::RLC(Target8Bit::HLP),
+            0x07 => Instruction::RLC(Target8Bit::A),
+
+            0x08 => Instruction::RRC(Target8Bit::B),
+            0x09 => Instruction::RRC(Target8Bit::C),
+            0x0A => Instruction::RRC(Target8Bit::D),
+            0x0B => Instruction::RRC(Target8Bit::E),
+            0x0C => Instruction::RRC(Target8Bit::H),
+            0x0D => Instruction::RRC(Target8Bit::L),
+            0x0E => Instruction::RRC(Target8Bit::HLP),
+            0x0F => Instruction::RRC(Target8Bit::A),
+
+            0x10 => Instruction::RL(Target8Bit::B),
+            0x11 => Instruction::RL(Target8Bit::C),
+            0x12 => Instruction::RL(Target8Bit::D),
+            0x13 => Instruction::RL(Target8Bit::E),
+            0x14 => Instruction::RL(Target8Bit::H),
+            0x15 => Instruction::RL(Target8Bit::L),
+            0x16 => Instruction::RL(Target8Bit::HLP),
+            0x17 => Instruction::RL(Target8Bit::A),
+
+            0x18 => Instruction::RR(Target8Bit::B),
+            0x19 => Instruction::RR(Target8Bit::C),
+            0x1A => Instruction::RR(Target8Bit::D),
+            0x1B => Instruction::RR(Target8Bit::E),
+            0x1C => Instruction::RR(Target8Bit::H),
+            0x1D => Instruction::RR(Target8Bit::L),
+            0x1E => Instruction::RR(Target8Bit::HLP),
+            0x1F => Instruction::RR(Target8Bit::A),
+
+            0x20 => Instruction::SLA(Target8Bit::B),
+            0x21 => Instruction::SLA(Target8Bit::C),
+            0x22 => Instruction::SLA(Target8Bit::D),
+            0x23 => Instruction::SLA(Target8Bit::E),
+            0x24 => Instruction::SLA(Target8Bit::H),
+            0x25 => Instruction::SLA(Target8Bit::L),
+            0x26 => Instruction::SLA(Target8Bit::HLP),
+            0x27 => Instruction::SLA(Target8Bit::A),
+
+            0x28 => Instruction::SRA(Target8Bit::B),
+            0x29 => Instruction::SRA(Target8Bit::C),
+            0x2A => Instruction::SRA(Target8Bit::D),
+            0x2B => Instruction::SRA(Target8Bit::E),
+            0x2C => Instruction::SRA(Target8Bit::H),
+            0x2D => Instruction::SRA(Target8Bit::L),
+            0x2E => Instruction::SRA(Target8Bit::HLP),
+            0x2F => Instruction::SRA(Target8Bit::A),
+
+            0x30 => Instruction::SWAP(Target8Bit::B),
+            0x31 => Instruction::SWAP(Target8Bit::C),
+            0x32 => Instruction::SWAP(Target8Bit::D),
+            0x33 => Instruction::SWAP(Target8Bit::E),
+            0x34 => Instruction::SWAP(Target8Bit::H),
+            0x35 => Instruction::SWAP(Target8Bit::L),
+            0x36 => Instruction::SWAP(Target8Bit::HLP),
+            0x37 => Instruction::SWAP(Target8Bit::A),
+
+            0x38 => Instruction::SRL(Target8Bit::B),
+            0x39 => Instruction::SRL(Target8Bit::C),
+            0x3A => Instruction::SRL(Target8Bit::D),
+            0x3B => Instruction::SRL(Target8Bit::E),
+            0x3C => Instruction::SRL(Target8Bit::H),
+            0x3D => Instruction::SRL(Target8Bit::L),
+            0x3E => Instruction::SRL(Target8Bit::HLP),
+            0x3F => Instruction::SRL(Target8Bit::A),
+
+            0x40 => Instruction::BIT(0, Target8Bit::B),
+            0x41 => Instruction::BIT(0, Target8Bit::C),
+            0x42 => Instruction::BIT(0, Target8Bit::D),
+            0x43 => Instruction::BIT(0, Target8Bit::E),
+            0x44 => Instruction::BIT(0, Target8Bit::H),
+            0x45 => Instruction::BIT(0, Target8Bit::L),
+            0x46 => Instruction::BIT(0, Target8Bit::HLP),
+            0x47 => Instruction::BIT(0, Target8Bit::A),
+
+            0x48 => Instruction::BIT(1, Target8Bit::B),
+            0x49 => Instruction::BIT(1, Target8Bit::C),
+            0x4A => Instruction::BIT(1, Target8Bit::D),
+            0x4B => Instruction::BIT(1, Target8Bit::E),
+            0x4C => Instruction::BIT(1, Target8Bit::H),
+            0x4D => Instruction::BIT(1, Target8Bit::L),
+            0x4E => Instruction::BIT(1, Target8Bit::HLP),
+            0x4F => Instruction::BIT(1, Target8Bit::A),
+
+            0x50 => Instruction::BIT(2, Target8Bit::B),
+            0x51 => Instruction::BIT(2, Target8Bit::C),
+            0x52 => Instruction::BIT(2, Target8Bit::D),
+            0x53 => Instruction::BIT(2, Target8Bit::E),
+            0x54 => Instruction::BIT(2, Target8Bit::H),
+            0x55 => Instruction::BIT(2, Target8Bit::L),
+            0x56 => Instruction::BIT(2, Target8Bit::HLP),
+            0x57 => Instruction::BIT(2, Target8Bit::A),
+
+            0x58 => Instruction::BIT(3, Target8Bit::B),
+            0x59 => Instruction::BIT(3, Target8Bit::C),
+            0x5A => Instruction::BIT(3, Target8Bit::D),
+            0x5B => Instruction::BIT(3, Target8Bit::E),
+            0x5C => Instruction::BIT(3, Target8Bit::H),
+            0x5D => Instruction::BIT(3, Target8Bit::L),
+            0x5E => Instruction::BIT(3, Target8Bit::HLP),
+            0x5F => Instruction::BIT(3, Target8Bit::A),
+
+            0x60 => Instruction::BIT(4, Target8Bit::B),
+            0x61 => Instruction::BIT(4, Target8Bit::C),
+            0x62 => Instruction::BIT(4, Target8Bit::D),
+            0x63 => Instruction::BIT(4, Target8Bit::E),
+            0x64 => Instruction::BIT(4, Target8Bit::H),
+            0x65 => Instruction::BIT(4, Target8Bit::L),
+            0x66 => Instruction::BIT(4, Target8Bit::HLP),
+            0x67 => Instruction::BIT(4, Target8Bit::A),
+
+            0x68 => Instruction::BIT(5, Target8Bit::B),
+            0x69 => Instruction::BIT(5, Target8Bit::C),
+            0x6A => Instruction::BIT(5, Target8Bit::D),
+            0x6B => Instruction::BIT(5, Target8Bit::E),
+            0x6C => Instruction::BIT(5, Target8Bit::H),
+            0x6D => Instruction::BIT(5, Target8Bit::L),
+            0x6E => Instruction::BIT(5, Target8Bit::HLP),
+            0x6F => Instruction::BIT(5, Target8Bit::A),
+
+            0x70 => Instruction::BIT(6, Target8Bit::B),
+            0x71 => Instruction::BIT(6, Target8Bit::C),
+            0x72 => Instruction::BIT(6, Target8Bit::D),
+            0x73 => Instruction::BIT(6, Target8Bit::E),
+            0x74 => Instruction::BIT(6, Target8Bit::H),
+            0x75 => Instruction::BIT(6, Target8Bit::L),
+            0x76 => Instruction::BIT(6, Target8Bit::HLP),
+            0x77 => Instruction::BIT(6, Target8Bit::A),
+
+            0x78 => Instruction::BIT(7, Target8Bit::B),
+            0x79 => Instruction::BIT(7, Target8Bit::C),
+            0x7A => Instruction::BIT(7, Target8Bit::D),
+            0x7B => Instruction::BIT(7, Target8Bit::E),
+            0x7C => Instruction::BIT(7, Target8Bit::H),
+            0x7D => Instruction::BIT(7, Target8Bit::L),
+            0x7E => Instruction::BIT(7, Target8Bit::HLP),
+            0x7F => Instruction::BIT(7, Target8Bit::A),
+
+            0x80 => Instruction::RES(0, Target8Bit::B),
+            0x81 => Instruction::RES(0, Target8Bit::C),
+            0x82 => Instruction::RES(0, Target8Bit::D),
+            0x83 => Instruction::RES(0, Target8Bit::E),
+            0x84 => Instruction::RES(0, Target8Bit::H),
+            0x85 => Instruction::RES(0, Target8Bit::L),
+            0x86 => Instruction::RES(0, Target8Bit::HLP),
+            0x87 => Instruction::RES(0, Target8Bit::A),
+
+            0x88 => Instruction::RES(1, Target8Bit::B),
+            0x89 => Instruction::RES(1, Target8Bit::C),
+            0x8A => Instruction::RES(1, Target8Bit::D),
+            0x8B => Instruction::RES(1, Target8Bit::E),
+            0x8C => Instruction::RES(1, Target8Bit::H),
+            0x8D => Instruction::RES(1, Target8Bit::L),
+            0x8E => Instruction::RES(1, Target8Bit::HLP),
+            0x8F => Instruction::RES(1, Target8Bit::A),
+
+            0x90 => Instruction::RES(2, Target8Bit::B),
+            0x91 => Instruction::RES(2, Target8Bit::C),
+            0x92 => Instruction::RES(2, Target8Bit::D),
+            0x93 => Instruction::RES(2, Target8Bit::E),
+            0x94 => Instruction::RES(2, Target8Bit::H),
+            0x95 => Instruction::RES(2, Target8Bit::L),
+            0x96 => Instruction::RES(2, Target8Bit::HLP),
+            0x97 => Instruction::RES(2, Target8Bit::A),
+
+            0x98 => Instruction::RES(3, Target8Bit::B),
+            0x99 => Instruction::RES(3, Target8Bit::C),
+            0x9A => Instruction::RES(3, Target8Bit::D),
+            0x9B => Instruction::RES(3, Target8Bit::E),
+            0x9C => Instruction::RES(3, Target8Bit::H),
+            0x9D => Instruction::RES(3, Target8Bit::L),
+            0x9E => Instruction::RES(3, Target8Bit::HLP),
+            0x9F => Instruction::RES(3, Target8Bit::A),
+
+            0xA0 => Instruction::RES(4, Target8Bit::B),
+            0xA1 => Instruction::RES(4, Target8Bit::C),
+            0xA2 => Instruction::RES(4, Target8Bit::D),
+            0xA3 => Instruction::RES(4, Target8Bit::E),
+            0xA4 => Instruction::RES(4, Target8Bit::H),
+            0xA5 => Instruction::RES(4, Target8Bit::L),
+            0xA6 => Instruction::RES(4, Target8Bit::HLP),
+            0xA7 => Instruction::RES(4, Target8Bit::A),
+
+            0xA8 => Instruction::RES(5, Target8Bit::B),
+            0xA9 => Instruction::RES(5, Target8Bit::C),
+            0xAA => Instruction::RES(5, Target8Bit::D),
+            0xAB => Instruction::RES(5, Target8Bit::E),
+            0xAC => Instruction::RES(5, Target8Bit::H),
+            0xAD => Instruction::RES(5, Target8Bit::L),
+            0xAE => Instruction::RES(5, Target8Bit::HLP),
+            0xAF => Instruction::RES(5, Target8Bit::A),
+
+            0xB0 => Instruction::RES(6, Target8Bit::B),
+            0xB1 => Instruction::RES(6, Target8Bit::C),
+            0xB2 => Instruction::RES(6, Target8Bit::D),
+            0xB3 => Instruction::RES(6, Target8Bit::E),
+            0xB4 => Instruction::RES(6, Target8Bit::H),
+            0xB5 => Instruction::RES(6, Target8Bit::L),
+            0xB6 => Instruction::RES(6, Target8Bit::HLP),
+            0xB7 => Instruction::RES(6, Target8Bit::A),
+
+            0xB8 => Instruction::RES(7, Target8Bit::B),
+            0xB9 => Instruction::RES(7, Target8Bit::C),
+            0xBA => Instruction::RES(7, Target8Bit::D),
+            0xBB => Instruction::RES(7, Target8Bit::E),
+            0xBC => Instruction::RES(7, Target8Bit::H),
+            0xBD => Instruction::RES(7, Target8Bit::L),
+            0xBE => Instruction::RES(7, Target8Bit::HLP),
+            0xBF => Instruction::RES(7, Target8Bit::A),
+
+            0xC0 => Instruction::SET(0, Target8Bit::B),
+            0xC1 => Instruction::SET(0, Target8Bit::C),
+            0xC2 => Instruction::SET(0, Target8Bit::D),
+            0xC3 => Instruction::SET(0, Target8Bit::E),
+            0xC4 => Instruction::SET(0, Target8Bit::H),
+            0xC5 => Instruction::SET(0, Target8Bit::L),
+            0xC6 => Instruction::SET(0, Target8Bit::HLP),
+            0xC7 => Instruction::SET(0, Target8Bit::A),
+
+            0xC8 => Instruction::SET(1, Target8Bit::B),
+            0xC9 => Instruction::SET(1, Target8Bit::C),
+            0xCA => Instruction::SET(1, Target8Bit::D),
+            0xCB => Instruction::SET(1, Target8Bit::E),
+            0xCC => Instruction::SET(1, Target8Bit::H),
+            0xCD => Instruction::SET(1, Target8Bit::L),
+            0xCE => Instruction::SET(1, Target8Bit::HLP),
+            0xCF => Instruction::SET(1, Target8Bit::A),
+
+            0xD0 => Instruction::SET(2, Target8Bit::B),
+            0xD1 => Instruction::SET(2, Target8Bit::C),
+            0xD2 => Instruction::SET(2, Target8Bit::D),
+            0xD3 => Instruction::SET(2, Target8Bit::E),
+            0xD4 => Instruction::SET(2, Target8Bit::H),
+            0xD5 => Instruction::SET(2, Target8Bit::L),
+            0xD6 => Instruction::SET(2, Target8Bit::HLP),
+            0xD7 => Instruction::SET(2, Target8Bit::A),
+
+            0xD8 => Instruction::SET(3, Target8Bit::B),
+            0xD9 => Instruction::SET(3, Target8Bit::C),
+            0xDA => Instruction::SET(3, Target8Bit::D),
+            0xDB => Instruction::SET(3, Target8Bit::E),
+            0xDC => Instruction::SET(3, Target8Bit::H),
+            0xDD => Instruction::SET(3, Target8Bit::L),
+            0xDE => Instruction::SET(3, Target8Bit::HLP),
+            0xDF => Instruction::SET(3, Target8Bit::A),
+
+            0xE0 => Instruction::SET(4, Target8Bit::B),
+            0xE1 => Instruction::SET(4, Target8Bit::C),
+            0xE2 => Instruction::SET(4, Target8Bit::D),
+            0xE3 => Instruction::SET(4, Target8Bit::E),
+            0xE4 => Instruction::SET(4, Target8Bit::H),
+            0xE5 => Instruction::SET(4, Target8Bit::L),
+            0xE6 => Instruction::SET(4, Target8Bit::HLP),
+            0xE7 => Instruction::SET(4, Target8Bit::A),
+
+            0xE8 => Instruction::SET(5, Target8Bit::B),
+            0xE9 => Instruction::SET(5, Target8Bit::C),
+            0xEA => Instruction::SET(5, Target8Bit::D),
+            0xEB => Instruction::SET(5, Target8Bit::E),
+            0xEC => Instruction::SET(5, Target8Bit::H),
+            0xED => Instruction::SET(5, Target8Bit::L),
+            0xEE => Instruction::SET(5, Target8Bit::HLP),
+            0xEF => Instruction::SET(5, Target8Bit::A),
+
+            0xF0 => Instruction::SET(6, Target8Bit::B),
+            0xF1 => Instruction::SET(6, Target8Bit::C),
+            0xF2 => Instruction::SET(6, Target8Bit::D),
+            0xF3 => Instruction::SET(6, Target8Bit::E),
+            0xF4 => Instruction::SET(6, Target8Bit::H),
+            0xF5 => Instruction::SET(6, Target8Bit::L),
+            0xF6 => Instruction::SET(6, Target8Bit::HLP),
+            0xF7 => Instruction::SET(6, Target8Bit::A),
+
+            0xF8 => Instruction::SET(7, Target8Bit::B),
+            0xF9 => Instruction::SET(7, Target8Bit::C),
+            0xFA => Instruction::SET(7, Target8Bit::D),
+            0xFB => Instruction::SET(7, Target8Bit::E),
+            0xFC => Instruction::SET(7, Target8Bit::H),
+            0xFD => Instruction::SET(7, Target8Bit::L),
+            0xFE => Instruction::SET(7, Target8Bit::HLP),
+            0xFF => Instruction::SET(7, Target8Bit::A),
+            _ => unreachable!()
+        }
+    }
+
+    fn from_byte_not_prefixed(byte: u8) -> Option<Instruction> {
+        match byte {
+            // https://gbdev.io/gb-opcodes/optables/
+            // Row is first 4 bits, column is last 4 bits
+            0x00 => Some(Instruction::NOP),
+            0x01 => Some(Instruction::LD(LoadType::WordFromImm(Reg16Bit::BC))),
+            0x02 => Some(Instruction::LD(LoadType::DerefFromA(DerefTarget::BCP))),
+            0x03 => Some(Instruction::INC(IncDecTarget::BC)),
+            0x04 => Some(Instruction::INC(IncDecTarget::B)),
+            0x05 => Some(Instruction::DEC(IncDecTarget::B)),
+            0x06 => Some(Instruction::LD(LoadType::ByteFromImm(Target8Bit::B))),
+            0x07 => Some(Instruction::RLCA),
+            0x08 => Some(Instruction::LD(LoadType::A16FromSP)),
+            0x09 => Some(Instruction::ADDHL(Reg16Bit::BC)),
+            0x0A => Some(Instruction::LD(LoadType::AFromDeref(DerefTarget::BCP))),
+            0x0B => Some(Instruction::DEC(IncDecTarget::BC)),
+            0x0C => Some(Instruction::INC(IncDecTarget::C)),
+            0x0D => Some(Instruction::DEC(IncDecTarget::C)),
+            0x0E => Some(Instruction::LD(LoadType::ByteFromImm(Target8Bit::C))),
+
+            0x0F => Some(Instruction::RRCA),
+            0x10 => Some(Instruction::STOP),
+            0x11 => Some(Instruction::LD(LoadType::WordFromImm(Reg16Bit::DE))),
+            0x12 => Some(Instruction::LD(LoadType::DerefFromA(DerefTarget::DEP))),
+            0x13 => Some(Instruction::INC(IncDecTarget::DE)),
+            0x14 => Some(Instruction::INC(IncDecTarget::D)),
+            0x15 => Some(Instruction::DEC(IncDecTarget::D)),
+            0x16 => Some(Instruction::LD(LoadType::ByteFromImm(Target8Bit::D))),
+            0x17 => Some(Instruction::RLA),
+            0x18 => Some(Instruction::JR(JumpTest::Always)),
+            0x19 => Some(Instruction::ADDHL(Reg16Bit::DE)),
+            0x1A => Some(Instruction::LD(LoadType::AFromDeref(DerefTarget::DEP))),
+            0x1B => Some(Instruction::DEC(IncDecTarget::DE)),
+            0x1C => Some(Instruction::INC(IncDecTarget::E)),
+            0x1D => Some(Instruction::DEC(IncDecTarget::E)),
+            0x1E => Some(Instruction::LD(LoadType::ByteFromImm(Target8Bit::E))),
+            0x1F => Some(Instruction::RRA),
+
+            0x20 => Some(Instruction::JR(JumpTest::NotZero)),
+            0x21 => Some(Instruction::LD(LoadType::WordFromImm(Reg16Bit::HL))),
+            0x22 => Some(Instruction::LD(LoadType::DerefFromA(DerefTarget::HLI))),
+            0x23 => Some(Instruction::INC(IncDecTarget::HL)),
+            0x24 => Some(Instruction::INC(IncDecTarget::H)),
+            0x25 => Some(Instruction::DEC(IncDecTarget::H)),
+            0x26 => Some(Instruction::LD(LoadType::ByteFromImm(Target8Bit::H))),
+            0x27 => Some(Instruction::DAA),
+            0x28 => Some(Instruction::JR(JumpTest::Zero)),
+            0x29 => Some(Instruction::ADDHL(Reg16Bit::HL)),
+            0x2A => Some(Instruction::LD(LoadType::AFromDeref(DerefTarget::HLI))),
+            0x2B => Some(Instruction::DEC(IncDecTarget::HL)),
+            0x2C => Some(Instruction::INC(IncDecTarget::L)),
+            0x2D => Some(Instruction::DEC(IncDecTarget::L)),
+            0x2E => Some(Instruction::LD(LoadType::ByteFromImm(Target8Bit::L))),
+            0x2F => Some(Instruction::CPL),
+            0x30 => Some(Instruction::JR(JumpTest::NotCarry)),
+            0x31 => Some(Instruction::LD(LoadType::WordFromImm(Reg16Bit::SP))),
+            0x32 => Some(Instruction::LD(LoadType::DerefFromA(DerefTarget::HLD))),
+            0x33 => Some(Instruction::INC(IncDecTarget::SP)),
+            0x34 => Some(Instruction::INC(IncDecTarget::HLP)),
+            0x35 => Some(Instruction::DEC(IncDecTarget::HLP)),
+            0x36 => Some(Instruction::LD(LoadType::ByteFromImm(Target8Bit::HLP))),
+            0x37 => Some(Instruction::SCF),
+            0x38 => Some(Instruction::JR(JumpTest::Carry)),
+            0x39 => Some(Instruction::ADDHL(Reg16Bit::SP)),
+            0x3A => Some(Instruction::LD(LoadType::AFromDeref(DerefTarget::HLD))),
+            0x3B => Some(Instruction::DEC(IncDecTarget::SP)),
+            0x3C => Some(Instruction::INC(IncDecTarget::A)),
+            0x3D => Some(Instruction::DEC(IncDecTarget::A)),
+            0x3E => Some(Instruction::LD(LoadType::ByteFromImm(Target8Bit::A))),
+            0x3F => Some(Instruction::CCF),
+            0x40 => Some(Instruction::LD(LoadType::Byte(Target8Bit::B, Target8Bit::B))),
+            0x41 => Some(Instruction::LD(LoadType::Byte(Target8Bit::B, Target8Bit::C))),
+            0x42 => Some(Instruction::LD(LoadType::Byte(Target8Bit::B, Target8Bit::D))),
+            0x43 => Some(Instruction::LD(LoadType::Byte(Target8Bit::B, Target8Bit::E))),
+            0x44 => Some(Instruction::LD(LoadType::Byte(Target8Bit::B, Target8Bit::H))),
+            0x45 => Some(Instruction::LD(LoadType::Byte(Target8Bit::B, Target8Bit::L))),
+            0x46 => Some(Instruction::LD(LoadType::Byte(Target8Bit::B, Target8Bit::HLP))),
+            0x47 => Some(Instruction::LD(LoadType::Byte(Target8Bit::B, Target8Bit::A))),
+            0x48 => Some(Instruction::LD(LoadType::Byte(Target8Bit::C, Target8Bit::B))),
+            0x49 => Some(Instruction::LD(LoadType::Byte(Target8Bit::C, Target8Bit::C))),
+            0x4A => Some(Instruction::LD(LoadType::Byte(Target8Bit::C, Target8Bit::D))),
+            0x4B => Some(Instruction::LD(LoadType::Byte(Target8Bit::C, Target8Bit::E))),
+            0x4C => Some(Instruction::LD(LoadType::Byte(Target8Bit::C, Target8Bit::H))),
+            0x4D => Some(Instruction::LD(LoadType::Byte(Target8Bit::C, Target8Bit::L))),
+            0x4E => Some(Instruction::LD(LoadType::Byte(Target8Bit::C, Target8Bit::HLP))),
+            0x4F => Some(Instruction::LD(LoadType::Byte(Target8Bit::C, Target8Bit::A))),
+            0x50 => Some(Instruction::LD(LoadType::Byte(Target8Bit::D, Target8Bit::B))),
+            0x51 => Some(Instruction::LD(LoadType::Byte(Target8Bit::D, Target8Bit::C))),
+            0x52 => Some(Instruction::LD(LoadType::Byte(Target8Bit::D, Target8Bit::D))),
+            0x53 => Some(Instruction::LD(LoadType::Byte(Target8Bit::D, Target8Bit::E))),
+            0x54 => Some(Instruction::LD(LoadType::Byte(Target8Bit::D, Target8Bit::H))),
+            0x55 => Some(Instruction::LD(LoadType::Byte(Target8Bit::D, Target8Bit::L))),
+            0x56 => Some(Instruction::LD(LoadType::Byte(Target8Bit::D, Target8Bit::HLP))),
+            0x57 => Some(Instruction::LD(LoadType::Byte(Target8Bit::D, Target8Bit::A))),
+            0x58 => Some(Instruction::LD(LoadType::Byte(Target8Bit::E, Target8Bit::B))),
+            0x59 => Some(Instruction::LD(LoadType::Byte(Target8Bit::E, Target8Bit::C))),
+            0x5A => Some(Instruction::LD(LoadType::Byte(Target8Bit::E, Target8Bit::D))),
+            0x5B => Some(Instruction::LD(LoadType::Byte(Target8Bit::E, Target8Bit::E))),
+            0x5C => Some(Instruction::LD(LoadType::Byte(Target8Bit::E, Target8Bit::H))),
+            0x5D => Some(Instruction::LD(LoadType::Byte(Target8Bit::E, Target8Bit::L))),
+            0x5E => Some(Instruction::LD(LoadType::Byte(Target8Bit::E, Target8Bit::HLP))),
+            0x5F => Some(Instruction::LD(LoadType::Byte(Target8Bit::E, Target8Bit::A))),
+            0x60 => Some(Instruction::LD(LoadType::Byte(Target8Bit::H, Target8Bit::B))),
+            0x61 => Some(Instruction::LD(LoadType::Byte(Target8Bit::H, Target8Bit::C))),
+            0x62 => Some(Instruction::LD(LoadType::Byte(Target8Bit::H, Target8Bit::D))),
+            0x63 => Some(Instruction::LD(LoadType::Byte(Target8Bit::H, Target8Bit::E))),
+            0x64 => Some(Instruction::LD(LoadType::Byte(Target8Bit::H, Target8Bit::H))),
+            0x65 => Some(Instruction::LD(LoadType::Byte(Target8Bit::H, Target8Bit::L))),
+            0x66 => Some(Instruction::LD(LoadType::Byte(Target8Bit::H, Target8Bit::HLP))),
+            0x67 => Some(Instruction::LD(LoadType::Byte(Target8Bit::H, Target8Bit::A))),
+            0x68 => Some(Instruction::LD(LoadType::Byte(Target8Bit::L, Target8Bit::B))),
+            0x69 => Some(Instruction::LD(LoadType::Byte(Target8Bit::L, Target8Bit::C))),
+            0x6A => Some(Instruction::LD(LoadType::Byte(Target8Bit::L, Target8Bit::D))),
+            0x6B => Some(Instruction::LD(LoadType::Byte(Target8Bit::L, Target8Bit::E))),
+            0x6C => Some(Instruction::LD(LoadType::Byte(Target8Bit::L, Target8Bit::H))),
+            0x6D => Some(Instruction::LD(LoadType::Byte(Target8Bit::L, Target8Bit::L))),
+            0x6E => Some(Instruction::LD(LoadType::Byte(Target8Bit::L, Target8Bit::HLP))),
+            0x6F => Some(Instruction::LD(LoadType::Byte(Target8Bit::L, Target8Bit::A))),
+            0x70 => Some(Instruction::LD(LoadType::Byte(Target8Bit::HLP, Target8Bit::B))),
+            0x71 => Some(Instruction::LD(LoadType::Byte(Target8Bit::HLP, Target8Bit::C))),
+            0x72 => Some(Instruction::LD(LoadType::Byte(Target8Bit::HLP, Target8Bit::D))),
+            0x73 => Some(Instruction::LD(LoadType::Byte(Target8Bit::HLP, Target8Bit::E))),
+            0x74 => Some(Instruction::LD(LoadType::Byte(Target8Bit::HLP, Target8Bit::H))),
+            0x75 => Some(Instruction::LD(LoadType::Byte(Target8Bit::HLP, Target8Bit::L))),
+            0x76 => Some(Instruction::HALT),
+            0x77 => Some(Instruction::LD(LoadType::Byte(Target8Bit::HLP, Target8Bit::A))),
+            0x78 => Some(Instruction::LD(LoadType::Byte(Target8Bit::A, Target8Bit::B))),
+            0x79 => Some(Instruction::LD(LoadType::Byte(Target8Bit::A, Target8Bit::C))),
+            0x7A => Some(Instruction::LD(LoadType::Byte(Target8Bit::A, Target8Bit::D))),
+            0x7B => Some(Instruction::LD(LoadType::Byte(Target8Bit::A, Target8Bit::E))),
+            0x7C => Some(Instruction::LD(LoadType::Byte(Target8Bit::A, Target8Bit::H))),
+            0x7D => Some(Instruction::LD(LoadType::Byte(Target8Bit::A, Target8Bit::L))),
+            0x7E => Some(Instruction::LD(LoadType::Byte(Target8Bit::A, Target8Bit::HLP))),
+            0x7F => Some(Instruction::LD(LoadType::Byte(Target8Bit::A, Target8Bit::A))),
+
+            0x80 => Some(Instruction::ADD(Source8Bit::B)),
+            0x81 => Some(Instruction::ADD(Source8Bit::C)),
+            0x82 => Some(Instruction::ADD(Source8Bit::D)),
+            0x83 => Some(Instruction::ADD(Source8Bit::E)),
+            0x84 => Some(Instruction::ADD(Source8Bit::H)),
+            0x85 => Some(Instruction::ADD(Source8Bit::L)),
+            0x86 => Some(Instruction::ADD(Source8Bit::HLP)),
+            0x87 => Some(Instruction::ADD(Source8Bit::A)),
+
+            0x88 => Some(Instruction::ADC(Source8Bit::B)),
+            0x89 => Some(Instruction::ADC(Source8Bit::C)),
+            0x8A => Some(Instruction::ADC(Source8Bit::D)),
+            0x8B => Some(Instruction::ADC(Source8Bit::E)),
+            0x8C => Some(Instruction::ADC(Source8Bit::H)),
+            0x8D => Some(Instruction::ADC(Source8Bit::L)),
+            0x8E => Some(Instruction::ADC(Source8Bit::HLP)),
+            0x8F => Some(Instruction::ADC(Source8Bit::A)),
+
+            0x90 => Some(Instruction::SUB(Source8Bit::B)),
+            0x91 => Some(Instruction::SUB(Source8Bit::C)),
+            0x92 => Some(Instruction::SUB(Source8Bit::D)),
+            0x93 => Some(Instruction::SUB(Source8Bit::E)),
+            0x94 => Some(Instruction::SUB(Source8Bit::H)),
+            0x95 => Some(Instruction::SUB(Source8Bit::L)),
+            0x96 => Some(Instruction::SUB(Source8Bit::HLP)),
+            0x97 => Some(Instruction::SUB(Source8Bit::A)),
+
+            0x98 => Some(Instruction::SBC(Source8Bit::B)),
+            0x99 => Some(Instruction::SBC(Source8Bit::C)),
+            0x9A => Some(Instruction::SBC(Source8Bit::D)),
+            0x9B => Some(Instruction::SBC(Source8Bit::E)),
+            0x9C => Some(Instruction::SBC(Source8Bit::H)),
+            0x9D => Some(Instruction::SBC(Source8Bit::L)),
+            0x9E => Some(Instruction::SBC(Source8Bit::HLP)),
+            0x9F => Some(Instruction::SBC(Source8Bit::A)),
+
+            0xA0 => Some(Instruction::AND(Source8Bit::B)),
+            0xA1 => Some(Instruction::AND(Source8Bit::C)),
+            0xA2 => Some(Instruction::AND(Source8Bit::D)),
+            0xA3 => Some(Instruction::AND(Source8Bit::E)),
+            0xA4 => Some(Instruction::AND(Source8Bit::H)),
+            0xA5 => Some(Instruction::AND(Source8Bit::L)),
+            0xA6 => Some(Instruction::AND(Source8Bit::HLP)),
+            0xA7 => Some(Instruction::AND(Source8Bit::A)),
+
+            0xA8 => Some(Instruction::XOR(Source8Bit::B)),
+            0xA9 => Some(Instruction::XOR(Source8Bit::C)),
+            0xAA => Some(Instruction::XOR(Source8Bit::D)),
+            0xAB => Some(Instruction::XOR(Source8Bit::E)),
+            0xAC => Some(Instruction::XOR(Source8Bit::H)),
+            0xAD => Some(Instruction::XOR(Source8Bit::L)),
+            0xAE => Some(Instruction::XOR(Source8Bit::HLP)),
+            0xAF => Some(Instruction::XOR(Source8Bit::A)),
+
+            0xB0 => Some(Instruction::OR(Source8Bit::B)),
+            0xB1 => Some(Instruction::OR(Source8Bit::C)),
+            0xB2 => Some(Instruction::OR(Source8Bit::D)),
+            0xB3 => Some(Instruction::OR(Source8Bit::E)),
+            0xB4 => Some(Instruction::OR(Source8Bit::H)),
+            0xB5 => Some(Instruction::OR(Source8Bit::L)),
+            0xB6 => Some(Instruction::OR(Source8Bit::HLP)),
+            0xB7 => Some(Instruction::OR(Source8Bit::A)),
+
+            0xB8 => Some(Instruction::CP(Source8Bit::B)),
+            0xB9 => Some(Instruction::CP(Source8Bit::C)),
+            0xBA => Some(Instruction::CP(Source8Bit::D)),
+            0xBB => Some(Instruction::CP(Source8Bit::E)),
+            0xBC => Some(Instruction::CP(Source8Bit::H)),
+            0xBD => Some(Instruction::CP(Source8Bit::L)),
+            0xBE => Some(Instruction::CP(Source8Bit::HLP)),
+            0xBF => Some(Instruction::CP(Source8Bit::A)),
+
+            0xC0 => Some(Instruction::RET(JumpTest::NotZero)),
+            0xC1 => Some(Instruction::POP(StackTarget::BC)),
+            0xC2 => Some(Instruction::JP(JumpTest::NotZero)),
+            0xC3 => Some(Instruction::JP(JumpTest::Always)),
+            0xC4 => Some(Instruction::CALL(JumpTest::NotZero)),
+            0xC5 => Some(Instruction::PUSH(StackTarget::BC)),
+            0xC6 => Some(Instruction::ADD(Source8Bit::N8)),
+            0xC7 => Some(Instruction::RST(0x00)),
+            0xC8 => Some(Instruction::RET(JumpTest::Zero)),
+            0xC9 => Some(Instruction::RET(JumpTest::Always)),
+            0xCA => Some(Instruction::JP(JumpTest::Zero)),
+            0xCB => None, // Used for the prefix of prefixed instructions
+            0xCC => Some(Instruction::CALL(JumpTest::Zero)),
+            0xCD => Some(Instruction::CALL(JumpTest::Always)),
+            0xCE => Some(Instruction::ADC(Source8Bit::N8)),
+            0xCF => Some(Instruction::RST(0x08)),
+
+            0xD0 => Some(Instruction::RET(JumpTest::NotCarry)),
+            0xD1 => Some(Instruction::POP(StackTarget::DE)),
+            0xD2 => Some(Instruction::JP(JumpTest::NotCarry)),
+            0xD3 => None, // - (unused)
+            0xD4 => Some(Instruction::CALL(JumpTest::NotCarry)),
+            0xD5 => Some(Instruction::PUSH(StackTarget::DE)),
+            0xD6 => Some(Instruction::SUB(Source8Bit::N8)),
+            0xD7 => Some(Instruction::RST(0x10)),
+            0xD8 => Some(Instruction::RET(JumpTest::Carry)),
+            0xD9 => Some(Instruction::RETI),
+            0xDA => Some(Instruction::JP(JumpTest::Carry)),
+            0xDB => None, // - (unused)
+            0xDC => Some(Instruction::CALL(JumpTest::Carry)),
+            0xDD => None, // - (unused)
+            0xDE => Some(Instruction::SBC(Source8Bit::N8)),
+            0xDF => Some(Instruction::RST(0x18)),
+
+            0xE0 => Some(Instruction::LD(LoadType::A8FromA)),
+            0xE1 => Some(Instruction::POP(StackTarget::HL)),
+            0xE2 => Some(Instruction::LD(LoadType::CDFromA)),
+            0xE3 => None, // - (unused)
+            0xE4 => None, // - (unused)
+            0xE5 => Some(Instruction::PUSH(StackTarget::HL)),
+            0xE6 => Some(Instruction::AND(Source8Bit::N8)),
+            0xE7 => Some(Instruction::RST(0x20)),
+            0xE8 => Some(Instruction::ADDSP),
+            0xE9 => Some(Instruction::JPHL),
+            0xEA => Some(Instruction::LD(LoadType::A16FromA)),
+            0xEB => None, // - (unused)
+            0xEC => None, // - (unused)
+            0xED => None, // - (unused)
+            0xEE => Some(Instruction::XOR(Source8Bit::N8)),
+            0xEF => Some(Instruction::RST(0x28)),
+
+            0xF0 => Some(Instruction::LD(LoadType::AFromA8)),
+            0xF1 => Some(Instruction::POP(StackTarget::AF)),
+            0xF2 => Some(Instruction::LD(LoadType::AFromCD)),
+            0xF3 => Some(Instruction::DI),
+            0xF4 => None, // - (unused)
+            0xF5 => Some(Instruction::PUSH(StackTarget::AF)),
+            0xF6 => Some(Instruction::OR(Source8Bit::N8)),
+            0xF7 => Some(Instruction::RST(0x30)),
+            0xF8 => Some(Instruction::LD(LoadType::HLFromSPE8)),
+            0xF9 => Some(Instruction::LD(LoadType::SPFromHL)),
+            0xFA => Some(Instruction::LD(LoadType::AFromA16)),
+            0xFB => Some(Instruction::EI),
+            0xFC => None, // - (unused)
+            0xFD => None, // - (unused)
+            0xFE => Some(Instruction::CP(Source8Bit::N8)),
+            0xFF => Some(Instruction::RST(0x38)),
+            _ => unreachable!()
+        }
+    }
+}
