@@ -90,9 +90,9 @@ fn disassemble_branch(
     mut instruction_addr: u16,
     cpu: &CPU,
 ) {
-    if explored_address(instructions, instruction_addr) {
-        return;
-    }
+    // if explored_address(instructions, instruction_addr) {
+    //     return;
+    // }
 
     while instruction_addr < 0xFFFF {
         // Get the instruction at the current address

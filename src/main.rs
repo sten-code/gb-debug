@@ -41,6 +41,8 @@ fn main() {
     while cpu.registers.pc != 0x0100 {
         cpu.step();
     }
+    // disassembler::disassemble(&cpu);
+    // return;
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([1280.0, 720.0]),

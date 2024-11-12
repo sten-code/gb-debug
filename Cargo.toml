@@ -3,6 +3,9 @@ name = "gb-debug"
 version = "0.1.0"
 edition = "2021"
 
+[profile.release]
+debug = true
+
 [dependencies]
 egui = "0.29"
 eframe = "0.29"
