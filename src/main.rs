@@ -2,6 +2,7 @@ use std::fs;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::time::Instant;
+use disassembler::LineType;
 use eframe::emath::Align;
 use eframe::epaint::{Color32, Rounding, Stroke, TextureHandle};
 use eframe::epaint::textures::TextureOptions;
@@ -57,7 +58,7 @@ fn main() {
 }
 
 struct Context {
-    disassembly: Vec<(u16, Option<Instruction>, String)>,
+    disassembly: Vec<(u16, LineType, String)>,
     cpu: CPU,
     texture: TextureHandle,
     cycles_elapsed_in_frame: usize,
@@ -168,7 +169,7 @@ impl Context {
             .drag_to_scroll(false)
             .show(ui, |ui| {
                 // println!("Count: {}", self.disassembly.len());
-                for (addr, instruction, line) in self.disassembly.iter().skip(index.saturating_sub(100)).take(200) {
+                for (addr, line_type, line) in self.disassembly.iter().skip(index.saturating_sub(100)).take(200) {
                     let text = if *addr == self.cpu.registers.pc {
                         format!("> {:04X} {}", *addr, line)
                     } else {
@@ -178,8 +179,10 @@ impl Context {
 
                     // ui.label(text);
                     // continue;
-
-                    if *addr == self.cpu.registers.pc {
+                    if let LineType::Label(_) = line_type {
+                        ui.label(line);
+                    }
+                    else if *addr == self.cpu.registers.pc {
                         let galley = WidgetText::from(RichText::new(text).color(
                             if self.breakpoints.contains(addr) {
                                 Color32::LIGHT_RED
@@ -330,8 +333,8 @@ impl Context {
                 ui.label(format!("{:0>8b}", u8::from(self.cpu.registers.f)));
                 ui.label(format!("{:0>8b}", self.cpu.registers.h));
                 ui.label(format!("{:0>8b}", self.cpu.registers.l));
-                ui.label(format!("{:0>8b}", self.cpu.registers.sp));
-                ui.label(format!("{:0>8b}", self.cpu.registers.pc));
+                ui.label(format!("{:0>16b}", self.cpu.registers.sp));
+                ui.label(format!("{:0>16b}", self.cpu.registers.pc));
                 ui.label(format!("{}", bit(self.cpu.registers.f.zero)));
                 ui.label(format!("{}", bit(self.cpu.registers.f.subtract)));
                 ui.label(format!("{}", bit(self.cpu.registers.f.half_carry)));
@@ -469,7 +472,7 @@ impl Application {
             running: false,
             should_scroll_disasm: true,
             should_scroll_dump: true,
-            focussed_address: 0x0000,
+            focussed_address: 0x0100,
             show_message_box: false,
             breakpoint_address_input: String::new(),
         };
