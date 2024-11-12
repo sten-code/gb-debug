@@ -1,6 +1,6 @@
-use std::fs;
-use std::fs::File;
-use std::io::{Read, Write};
+use std::fs::{self, File};
+use std::io::Read;
+use std::ops::BitAndAssign;
 use std::time::Instant;
 use disassembler::LineType;
 use eframe::emath::Align;
@@ -10,7 +10,6 @@ use egui::{Button, CentralPanel, Frame, Layout, RichText, ScrollArea, Sense, Tex
 use egui_dock::{DockArea, DockState, NodeIndex, TabViewer};
 use crate::cartridge::Cartridge;
 use crate::cpu::CPU;
-use crate::cpu::instruction::Instruction;
 use crate::ppu::{SCREEN_HEIGHT, SCREEN_WIDTH};
 
 mod cpu;
@@ -171,7 +170,7 @@ impl Context {
             .drag_to_scroll(false)
             .show(ui, |ui| {
                 // println!("Count: {}", self.disassembly.len());
-                for (addr, line_type, line) in self.disassembly.iter().skip(index.saturating_sub(100)).take(200) {
+                for (addr, line_type, line) in self.disassembly.iter().skip(index.saturating_sub(150)).take(300) {
                     let text = if *addr == self.cpu.registers.pc {
                         format!("> {:04X} {}", *addr, line)
                     } else {
@@ -351,7 +350,7 @@ impl Context {
         let end: usize = 0xFFFF;
         let focussed_row_addr = self.focussed_address & 0xFFF0;
         ui.horizontal(|ui| {
-            ui.label("Addr");
+            ui.label("addr");
             ui.add_space(5.0);
             for i in 0..BYTES_PER_LINE {
                 ui.label(format!("{:02X}", i));

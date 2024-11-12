@@ -10,29 +10,58 @@ pub enum LineType {
     DataBlock(Vec<u8>),
 }
 
-pub fn disassemble(cpu: &CPU) -> Vec<(u16, LineType, String)> {
-    disassemble_from_address(0x0100, cpu)
+fn disassemble_function(
+    instructions: &mut Vec<(u16, LineType, String)>,
+    address: u16,
+    name: &str,
+    cpu: &CPU,
+) {
+    instructions.push((
+        address,
+        LineType::Label(name.to_owned()),
+        format!("{}_{:04X}:", name, address),
+    ));
+    disassemble_branch(instructions, address, cpu);
 }
 
-pub fn disassemble_from_address(instruction_addr: u16, cpu: &CPU) -> Vec<(u16, LineType, String)> {
+pub fn disassemble(cpu: &CPU) -> Vec<(u16, LineType, String)> {
     println!("Disassembling Instruction Tree...");
     let mut instructions: Vec<(u16, LineType, String)> = Vec::new();
-    instructions.push((
-        0x0100,
-        LineType::Label("main".to_owned()),
-        "main:".to_owned(),
-    ));
-    disassemble_branch(&mut instructions, instruction_addr, cpu);
+
+    // explore rst vectors
+    disassemble_function(&mut instructions, 0x0000, "rst", cpu);
+    disassemble_function(&mut instructions, 0x0008, "rst", cpu);
+    disassemble_function(&mut instructions, 0x0010, "rst", cpu);
+    disassemble_function(&mut instructions, 0x0018, "rst", cpu);
+    disassemble_function(&mut instructions, 0x0020, "rst", cpu);
+    disassemble_function(&mut instructions, 0x0028, "rst", cpu);
+    disassemble_function(&mut instructions, 0x0030, "rst", cpu);
+    disassemble_function(&mut instructions, 0x0038, "rst", cpu);
+
+    // explorer interrupt vectors
+    disassemble_function(&mut instructions, 0x0040, "interrupt", cpu);
+    disassemble_function(&mut instructions, 0x0048, "interrupt", cpu);
+    disassemble_function(&mut instructions, 0x0050, "interrupt", cpu);
+    disassemble_function(&mut instructions, 0x0058, "interrupt", cpu);
+    disassemble_function(&mut instructions, 0x0060, "interrupt", cpu);
+
+    // explore main function
+    disassemble_function(&mut instructions, 0x0100, "main", cpu);
+
     println!("Cleaning up labels...");
     let mut seen: HashMap<u16, bool> = HashMap::new();
-    instructions.retain(|instruction| !matches!(instruction.1, LineType::Label(_)) || seen.insert(instruction.0, true).is_none());
+    instructions.retain(|instruction| {
+        !matches!(instruction.1, LineType::Label(_)) || seen.insert(instruction.0, true).is_none()
+    });
     println!("Sorting...");
-    instructions.sort_by(|a, b| if matches!(a.1, LineType::Label(_)) && a.0 == b.0 { 
-        Ordering::Less
-    } else if matches!(b.1, LineType::Label(_)) && a.0 == b.0 {
-        Ordering::Greater
-    } else {
-        a.0.cmp(&b.0)
+    instructions.sort_by(|a, b| {
+        if matches!(a.1, LineType::Label(_)) && a.0 == b.0 {
+            Ordering::Less
+        } else if matches!(b.1, LineType::Label(_)) && a.0 == b.0 {
+            Ordering::Greater
+        } else {
+            a.0.cmp(&b.0)
+        }
     });
     println!("Generating data blocks...");
     let mut skip = 0;
@@ -110,7 +139,7 @@ fn disassemble_branch(
         match instruction {
             Instruction::JP(_) => {
                 let jump_address = cpu.mmu.read_word(operand_addr);
-                let name = format!("Addr_{:04X}", jump_address);
+                let name = format!("addr_{:04X}", jump_address);
                 instructions.push((
                     jump_address,
                     LineType::Label(name.clone()),
@@ -123,7 +152,7 @@ fn disassemble_branch(
             }
             Instruction::CALL(_) => {
                 let jump_address = cpu.mmu.read_word(operand_addr);
-                let name = format!("Addr_{:04X}", jump_address);
+                let name = format!("addr_{:04X}", jump_address);
                 instructions.push((
                     jump_address,
                     LineType::Label(name.clone()),
@@ -145,7 +174,7 @@ fn disassemble_branch(
                         .wrapping_add(2)
                         .wrapping_sub((byte as i8 as i16).unsigned_abs())
                 };
-                let name = format!("Addr_{:04X}", jump_address);
+                let name = format!("addr_{:04X}", jump_address);
                 instructions.push((
                     jump_address,
                     LineType::Label(name.clone()),
@@ -181,9 +210,11 @@ fn disassemble_branch(
         instructions.push((instruction_addr, LineType::Instruction(instruction), line));
 
         // If it always jumps when it reaches this instruction, it means the branch has ended
+        // Call is expected to return when it finishes, so don't end it.
         match instruction {
             Instruction::JP(JumpTest::Always) => break,
             Instruction::RET(JumpTest::Always) => break,
+            Instruction::RST(_) => break,
             _ => {}
         }
 

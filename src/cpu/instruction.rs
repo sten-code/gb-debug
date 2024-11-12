@@ -340,8 +340,8 @@ impl Instruction {
             Instruction::SWAP(target) => format!("SWAP {}", target.to_string()),
             Instruction::SRL(target) => format!("SRL  {}", target.to_string()),
             Instruction::LD(load_type) => format!("LD   {}", load_type.to_string(byte1, byte2)),
-            Instruction::CALL(test) => format!("CALL {}Addr_{:02X}{:02X}", test.to_string(), byte2, byte1),
-            Instruction::JP(test) => format!("JP   {}Addr_{:02X}{:02X}", test.to_string(), byte2, byte1),
+            Instruction::CALL(test) => format!("CALL {}addr_{:02X}{:02X}", test.to_string(), byte2, byte1),
+            Instruction::JP(test) => format!("JP   {}addr_{:02X}{:02X}", test.to_string(), byte2, byte1),
             Instruction::JPHL => "JP HL".to_owned(),
             Instruction::JR(test) => {
                 let jump_address = if byte1 as i8 >= 0 {
@@ -349,7 +349,7 @@ impl Instruction {
                 } else {
                     addr.wrapping_add(2).wrapping_sub((byte1 as i8 as i16).unsigned_abs())
                 };
-                format!("JR   {}Addr_{:04X} ; ({}{})", test.to_string(), jump_address, if byte1 as i8 >= 0 { "+" } else { "" }, byte1 as i8)
+                format!("JR   {}addr_{:04X} ; ({}{})", test.to_string(), jump_address, if byte1 as i8 >= 0 { "+" } else { "" }, byte1 as i8)
             }
             Instruction::RET(test) => format!("RET  {}", test.to_string()),
             Instruction::RETI => "RETI".to_owned(),
