@@ -21,14 +21,14 @@ enum PriorityType {
 }
 
 pub struct PPU {
-    vram: [[u8; 0x2000]; 2], // Video RAM, 2 banks of 0x2000 bytes
+    pub vram: [[u8; 0x2000]; 2], // Video RAM, 2 banks of 0x2000 bytes
     oam: [u8; 0xA0], // Object Attribute Memory
     pub selected_vram_bank: bool, // 0 or 1
     lcd_on: bool,
     win_tilemap: u16,
     win_enabled: bool,
-    tile_data_addr: u16,
-    bg_tilemap: u16,
+    pub tile_data_addr: u16,
+    pub bg_tilemap_addr: u16,
     sprite_size: u8,
     sprite_enabled: bool,
     bg_enabled: bool,
@@ -41,13 +41,13 @@ pub struct PPU {
     ly: u8, // LCD Y-Coordinate, the current horizontal line being drawn, range 0-153, 144-153 are the VBlank period: https://gbdev.io/pandocs/STAT.html#ff44--ly-lcd-y-coordinate-read-only
     lyc: u8, // LY Compare, when LY == LYC, the STAT interrupt is triggered if enabled: https://gbdev.io/pandocs/STAT.html#ff45--lyc-ly-compare
     mode: u8, // 0: HBlank, 1: VBlank, 2: OAM Search, 3: Pixel Transfer: https://gbdev.io/pandocs/Rendering.html#ppu-modes
-    scy: u8, // aka Viewport Y or Scroll Y
-    scx: u8, // aka Viewport X or Scroll X
+    pub scy: u8, // aka Viewport Y or Scroll Y
+    pub scx: u8, // aka Viewport X or Scroll X
 
     // https://gbdev.io/pandocs/Palettes.html#lcd-monochrome-palettes
-    bg_palette: u8, // (BGP) Background Palette Data, DMG only
-    obj_palette0: u8, // (OBP0) Object Palette 0 Data, DMG only
-    obj_palette1: u8, // (OBP1) Object Palette 1 Data, DMG only
+    pub bg_palette: u8, // (BGP) Background Palette Data, DMG only
+    pub obj_palette0: u8, // (OBP0) Object Palette 0 Data, DMG only
+    pub obj_palette1: u8, // (OBP1) Object Palette 1 Data, DMG only
 
     winy: u8, // Window Y Position: https://gbdev.io/pandocs/Scrolling.html#ff4aff4b--wy-wx-window-y-position-x-position-plus-7
     winx: u8, // Window X Position + 7
@@ -55,13 +55,13 @@ pub struct PPU {
     // https://gbdev.io/pandocs/Palettes.html#lcd-color-palettes-cgb-only
     cbg_palette_auto_increment: bool,
     cbg_palette_index: u8, // (BGPI) Background palette index
-    cbg_palette: [[[u8; 3]; 4]; 8], // (BGPD) Background palette data
+    pub cbg_palette: [[[u8; 3]; 4]; 8], // (BGPD) Background palette data
     cobj_palette_auto_increment: bool,
     cobj_palette_index: u8, // (OBPI) Object palette index
-    cobj_palette: [[[u8; 3]; 4]; 8], // (OBPD) Object palette Data
+    pub cobj_palette: [[[u8; 3]; 4]; 8], // (OBPD) Object palette Data
 
     wy_trigger: bool,
-    wy_pos: i16,
+    pub wy_pos: i16,
     pub interrupt: u8,
     pub hblank: bool, // True if the PPU is in HBlank mode
     dots: u16, // Number of cycles since the last mode change
@@ -72,7 +72,7 @@ pub struct PPU {
 }
 
 impl PPU {
-    pub fn new() -> PPU {
+    pub fn new(gb_mode: GbMode) -> PPU {
         PPU {
             vram: [[0; 0x2000]; 2],
             oam: [0; 0xA0],
@@ -81,7 +81,7 @@ impl PPU {
             win_tilemap: 0x9C00,
             win_enabled: false,
             tile_data_addr: 0x8000,
-            bg_tilemap: 0x9C00,
+            bg_tilemap_addr: 0x9C00,
             sprite_size: 8,
             sprite_enabled: false,
             bg_enabled: false,
@@ -118,7 +118,7 @@ impl PPU {
 
             screen_buffer: [0; SCREEN_WIDTH as usize * SCREEN_HEIGHT as usize * 3],
             bg_priority: [PriorityType::Normal; SCREEN_WIDTH as usize],
-            gb_mode: GbMode::Classic,
+            gb_mode,
         }
     }
 
@@ -173,7 +173,7 @@ impl PPU {
         }
     }
 
-    fn get_monochrome_palette_color(value: u8, index: u8) -> u8 {
+    pub fn get_monochrome_palette_color(value: u8, index: u8) -> u8 {
         match (value >> 2 * index) & 0x03 {
             0 => 255,
             1 => 192,
@@ -237,10 +237,10 @@ impl PPU {
     fn set_rgb(&mut self, x: u8, r: u8, g: u8, b: u8) {
         let index = self.ly as usize * SCREEN_WIDTH as usize * 3 + x as usize * 3;
 
-        // RGB888 to RGB555
-        self.screen_buffer[index + 0] = (r * 13 + g * 2 + b) >> 1;
-        self.screen_buffer[index + 1] = (g * 3 + b) << 1;
-        self.screen_buffer[index + 2] = (r * 3 + g * 2 + b * 11) >> 1;
+        // RGB555 to RGB888
+        self.screen_buffer[index + 0] = ((r as u32 * 13 + g as u32 * 2 + b as u32) >> 1) as u8;
+        self.screen_buffer[index + 1] = ((g as u32 * 3 + b as u32) << 1) as u8;
+        self.screen_buffer[index + 2] = ((r as u32 * 3 + g as u32 * 2 + b as u32 * 11) >> 1) as u8;
     }
 
     fn draw_bg(&mut self) {
@@ -272,9 +272,9 @@ impl PPU {
                  win_y as u16 % 8,
                  win_x as u8 % 8)
             } else if draw_bg {
-                (self.bg_tilemap,
+                (self.bg_tilemap_addr,
                  bg_tile_y,
-                 (bg_x as u16 / 8) & 31,
+                 (bg_x / 8) & 31,
                  bg_y as u16 % 8,
                  bg_x as u8 % 8)
             } else {
@@ -285,7 +285,7 @@ impl PPU {
             let (palette_num, vram1, x_flip, y_flip, priority) = if self.gb_mode == GbMode::Color {
                 let flags = self.vram[1][tile_map_base_addr as usize - 0x8000 + tile_y as usize * 32 + tile_x as usize];
                 (
-                    flags % 8,
+                    flags & 0b111,
                     is_set(flags, 3),
                     is_set(flags, 5),
                     is_set(flags, 6),
@@ -381,9 +381,9 @@ impl PPU {
             let below_bg = is_set(flags, 7);
 
             let tile_y = if y_flip {
-                self.sprite_size - 1 - (self.ly - sprite_y as u8)
+                self.sprite_size as u16 - 1 - (self.ly as i16 - sprite_y) as u16
             } else {
-                self.ly - sprite_y as u8
+                (self.ly as i16 - sprite_y) as u16
             };
 
             let tile_addr = tile_num * 16 + tile_y as u16 * 2;
@@ -454,7 +454,7 @@ impl PPU {
                 | bit(self.win_tilemap == 0x9C00, 6)
                 | bit(self.win_enabled, 5)
                 | bit(self.tile_data_addr == 0x8000, 4)
-                | bit(self.bg_tilemap == 0x9C00, 3)
+                | bit(self.bg_tilemap_addr == 0x9C00, 3)
                 | bit(self.sprite_size == 16, 2)
                 | bit(self.sprite_enabled, 1)
                 | bit(self.bg_enabled, 0),
@@ -476,6 +476,8 @@ impl PPU {
             0xFF4A => self.winy,
             0xFF4B => self.winx,
 
+            // CGB only
+            0xFF4F..=0xFF6B if self.gb_mode != GbMode::Color => { 0xFF }
             0xFF68 => bit(self.cbg_palette_auto_increment, 7)
                 | bit(true, 6)
                 | self.cbg_palette_index,
@@ -490,7 +492,7 @@ impl PPU {
                 // g = 00011111
                 // b = 00011111
 
-                let color_num = (self.cbg_palette_index / 2) % 8; // Because we are doing this alternating, we need to divide by 2
+                let color_num = (self.cbg_palette_index / 2) % 4; // Because we are doing this alternating, we need to divide by 2
                 if self.cbg_palette_index % 2 == 0 {
                     // Only the first 3 bits of green
                     self.cbg_palette[palette_num as usize][color_num as usize][0] | ((self.cbg_palette[palette_num as usize][color_num as usize][1] & 0x07) << 5)
@@ -505,7 +507,7 @@ impl PPU {
             0xFF6B => {
                 // Explanation is the same as the background palette
                 let palette_num = self.cobj_palette_index / 8;
-                let color_num = (self.cobj_palette_index / 2) % 8;
+                let color_num = (self.cobj_palette_index / 2) % 4;
                 if self.cobj_palette_index % 2 == 0 {
                     self.cobj_palette[palette_num as usize][color_num as usize][0] | ((self.cobj_palette[palette_num as usize][color_num as usize][1] & 0x07) << 5)
                 } else {
@@ -525,7 +527,7 @@ impl PPU {
                 self.win_tilemap = if is_set(value, 6) { 0x9C00 } else { 0x9800 };
                 self.win_enabled = is_set(value, 5);
                 self.tile_data_addr = if is_set(value, 4) { 0x8000 } else { 0x8800 };
-                self.bg_tilemap = if is_set(value, 3) { 0x9C00 } else { 0x9800 };
+                self.bg_tilemap_addr = if is_set(value, 3) { 0x9C00 } else { 0x9800 };
                 self.sprite_size = if is_set(value, 2) { 16 } else { 8 };
                 self.sprite_enabled = is_set(value, 1);
                 self.bg_enabled = is_set(value, 0);
@@ -554,13 +556,15 @@ impl PPU {
                 self.lyc = value;
                 self.check_lyc_interrupt();
             }
-            0xFF46 => {} // DMA should be handled by the MMU
+            0xFF46 => panic!("ppu.write_register(0xFF46, value): DMA should be handled by the MMU"),
             0xFF47 => self.bg_palette = value,
             0xFF48 => self.obj_palette0 = value,
             0xFF49 => self.obj_palette1 = value,
             0xFF4A => self.winy = value,
             0xFF4B => self.winx = value,
 
+            // CGB only
+            0xFF4F..=0xFF6B if self.gb_mode != GbMode::Color => {}
             0xFF68 => {
                 // https://gbdev.io/pandocs/Palettes.html#ff68--bcpsbgpi-cgb-mode-only-background-color-palette-specification--background-palette-index
                 self.cbg_palette_index = value & 0x3F; // The index is the first 6 bits
@@ -569,7 +573,7 @@ impl PPU {
             0xFF69 => {
                 // Explanation is in the read_register function
                 let palette_num = self.cbg_palette_index / 8;
-                let color_num = (self.cbg_palette_index / 2) % 8;
+                let color_num = (self.cbg_palette_index / 2) % 4;
                 if self.cbg_palette_index % 2 == 0 {
                     self.cbg_palette[palette_num as usize][color_num as usize][0] = value & 0x1F;
                     self.cbg_palette[palette_num as usize][color_num as usize][1] = (self.cbg_palette[palette_num as usize][color_num as usize][1] & 0x18) | (value >> 5);
@@ -588,7 +592,7 @@ impl PPU {
             0xFF6B => {
                 // Explanation is in the read_register function of the background palette, as it's the same for the objects.
                 let palette_num = self.cobj_palette_index / 8;
-                let color_num = (self.cobj_palette_index / 2) % 8;
+                let color_num = (self.cobj_palette_index / 2) % 4;
                 if self.cobj_palette_index % 2 == 0 {
                     self.cobj_palette[palette_num as usize][color_num as usize][0] = value & 0x1F;
                     self.cobj_palette[palette_num as usize][color_num as usize][1] = (self.cobj_palette[palette_num as usize][color_num as usize][1] & 0x18) | (value >> 5);

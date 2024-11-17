@@ -9,5 +9,8 @@ debug = true
 [dependencies]
 egui = "0.29"
 eframe = "0.29"
-egui_dock = "0.14"
-minifb = "0.27.0"
+egui_tiles = "0.10"
+catppuccin-egui = { version = "5.3.1", default-features = false, features = ["egui29"] }
+
+env_logger = "0.11"
+log = "0.4"

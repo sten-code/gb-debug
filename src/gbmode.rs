@@ -1,8 +1,7 @@
-﻿#[derive(Copy, Clone, PartialEq)]
+﻿#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum GbMode {
     Classic,
     Color,
-    ColorAsClassic,
 }
 
 #[derive(Copy, Clone, PartialEq)]

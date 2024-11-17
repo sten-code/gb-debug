@@ -7,43 +7,57 @@ use crate::cpu::CPU;
 pub enum LineType {
     Label(String),
     Instruction(Instruction),
-    DataBlock(Vec<u8>),
+    DataBlock,
+}
+
+pub struct DisassembledLine {
+    pub address: u16,
+    pub line_type: LineType,
+    pub bytes: Vec<u8>,
+    pub text: String,
+}
+
+fn add_label(instructions: &mut Vec<DisassembledLine>, name: &str, address: u16) {
+    let label = format!("{}_{:04X}", name, address);
+    instructions.push(DisassembledLine {
+        address,
+        line_type: LineType::Label(label.clone()),
+        bytes: Vec::new(),
+        text: format!("{}:", label),
+    });
 }
 
 fn disassemble_function(
-    instructions: &mut Vec<(u16, LineType, String)>,
+    instructions: &mut Vec<DisassembledLine>,
     address: u16,
     name: &str,
     cpu: &CPU,
 ) {
-    instructions.push((
-        address,
-        LineType::Label(name.to_owned()),
-        format!("{}_{:04X}:", name, address),
-    ));
+    println!("Disassembling {}_{:04X}...", name, address);
+    add_label(instructions, name, address);
     disassemble_branch(instructions, address, cpu);
 }
 
-pub fn disassemble(cpu: &CPU) -> Vec<(u16, LineType, String)> {
+pub fn disassemble(cpu: &CPU) -> Vec<DisassembledLine> {
     println!("Disassembling Instruction Tree...");
-    let mut instructions: Vec<(u16, LineType, String)> = Vec::new();
+    let mut instructions = Vec::new();
 
     // explore rst vectors
-    disassemble_function(&mut instructions, 0x0000, "rst", cpu);
-    disassemble_function(&mut instructions, 0x0008, "rst", cpu);
-    disassemble_function(&mut instructions, 0x0010, "rst", cpu);
-    disassemble_function(&mut instructions, 0x0018, "rst", cpu);
-    disassemble_function(&mut instructions, 0x0020, "rst", cpu);
-    disassemble_function(&mut instructions, 0x0028, "rst", cpu);
-    disassemble_function(&mut instructions, 0x0030, "rst", cpu);
-    disassemble_function(&mut instructions, 0x0038, "rst", cpu);
+    disassemble_function(&mut instructions, 0x00, "rst", cpu);
+    disassemble_function(&mut instructions, 0x08, "rst", cpu);
+    disassemble_function(&mut instructions, 0x10, "rst", cpu);
+    disassemble_function(&mut instructions, 0x18, "rst", cpu);
+    disassemble_function(&mut instructions, 0x20, "rst", cpu);
+    disassemble_function(&mut instructions, 0x28, "rst", cpu);
+    disassemble_function(&mut instructions, 0x30, "rst", cpu);
+    disassemble_function(&mut instructions, 0x38, "rst", cpu);
 
     // explorer interrupt vectors
-    disassemble_function(&mut instructions, 0x0040, "interrupt", cpu);
-    disassemble_function(&mut instructions, 0x0048, "interrupt", cpu);
-    disassemble_function(&mut instructions, 0x0050, "interrupt", cpu);
-    disassemble_function(&mut instructions, 0x0058, "interrupt", cpu);
-    disassemble_function(&mut instructions, 0x0060, "interrupt", cpu);
+    disassemble_function(&mut instructions, 0x40, "interrupt", cpu);
+    disassemble_function(&mut instructions, 0x48, "interrupt", cpu);
+    disassemble_function(&mut instructions, 0x50, "interrupt", cpu);
+    disassemble_function(&mut instructions, 0x58, "interrupt", cpu);
+    disassemble_function(&mut instructions, 0x60, "interrupt", cpu);
 
     // explore main function
     disassemble_function(&mut instructions, 0x0100, "main", cpu);
@@ -51,16 +65,16 @@ pub fn disassemble(cpu: &CPU) -> Vec<(u16, LineType, String)> {
     println!("Cleaning up labels...");
     let mut seen: HashMap<u16, bool> = HashMap::new();
     instructions.retain(|instruction| {
-        !matches!(instruction.1, LineType::Label(_)) || seen.insert(instruction.0, true).is_none()
+        !matches!(instruction.line_type, LineType::Label(_)) || seen.insert(instruction.address, true).is_none()
     });
     println!("Sorting...");
     instructions.sort_by(|a, b| {
-        if matches!(a.1, LineType::Label(_)) && a.0 == b.0 {
+        if matches!(a.line_type, LineType::Label(_)) && a.address == b.address {
             Ordering::Less
-        } else if matches!(b.1, LineType::Label(_)) && a.0 == b.0 {
+        } else if matches!(b.line_type, LineType::Label(_)) && a.address == b.address {
             Ordering::Greater
         } else {
-            a.0.cmp(&b.0)
+            a.address.cmp(&b.address)
         }
     });
     println!("Generating data blocks...");
@@ -70,10 +84,10 @@ pub fn disassemble(cpu: &CPU) -> Vec<(u16, LineType, String)> {
             skip -= 1;
             continue;
         }
-        if let LineType::Instruction(instruction) = instructions[i].1 {
+        if let LineType::Instruction(instruction) = instructions[i].line_type {
             let size = instruction.size() as u16;
-            let address1 = instructions[i].0;
-            let address2 = instructions[i + 1].0;
+            let address1 = instructions[i].address;
+            let address2 = instructions[i + 1].address;
 
             if address1 + size < address2 {
                 let block_size = address2 - (address1 + size);
@@ -93,11 +107,12 @@ pub fn disassemble(cpu: &CPU) -> Vec<(u16, LineType, String)> {
                     let _ = chunk.split_off(chunk.len() - 1);
                     instructions.insert(
                         i + line_index as usize + 1,
-                        (
-                            address1 + size + line_offset,
-                            LineType::DataBlock(data),
-                            chunk,
-                        ),
+                        DisassembledLine {
+                            address: address1 + size + line_offset,
+                            line_type: LineType::DataBlock,
+                            bytes: data,
+                            text: chunk,
+                        },
                     );
                     skip += 1;
                 }
@@ -108,116 +123,107 @@ pub fn disassemble(cpu: &CPU) -> Vec<(u16, LineType, String)> {
     instructions
 }
 
-fn explored_address(instructions: &[(u16, LineType, String)], address: u16) -> bool {
-    instructions.iter().any(|(addr, line_type, _)| {
-        *addr == address && matches!(line_type, LineType::Instruction(_))
+fn explored_address(instructions: &[DisassembledLine], address: u16) -> bool {
+    instructions.iter().any(|(line)| {
+        line.address == address && matches!(line.line_type, LineType::Instruction(_))
     })
 }
 
 fn disassemble_branch(
-    instructions: &mut Vec<(u16, LineType, String)>,
-    mut instruction_addr: u16,
+    instructions: &mut Vec<DisassembledLine>,
+    start_addr: u16,
     cpu: &CPU,
 ) {
-    // if explored_address(instructions, instruction_addr) {
-    //     return;
-    // }
+    // Stack of addresses to visit
+    let mut stack = vec![start_addr];
 
-    while instruction_addr < 0xFFFF {
-        // Get the instruction at the current address
-        let mut operand_addr = instruction_addr.wrapping_add(1);
-        let mut byte = cpu.mmu.read_byte(instruction_addr);
-        let is_prefixed = byte == 0xCB;
-        if is_prefixed {
-            byte = cpu.mmu.read_byte(instruction_addr.wrapping_add(1));
-            operand_addr = instruction_addr.wrapping_add(1);
-        }
-        let instruction = Instruction::from_byte(byte, is_prefixed).unwrap_or(Instruction::NOP);
-        let size = instruction.size();
+    while let Some(mut instruction_addr) = stack.pop() {
+        while instruction_addr < 0xFFFF {
+            // Check if we've already explored this address to prevent reprocessing
+            if explored_address(instructions, instruction_addr) {
+                break;
+            }
 
-        // Explore the branch that the jump/call instruction points to
-        match instruction {
-            Instruction::JP(_) => {
-                let jump_address = cpu.mmu.read_word(operand_addr);
-                let name = format!("addr_{:04X}", jump_address);
-                instructions.push((
-                    jump_address,
-                    LineType::Label(name.clone()),
-                    format!("{}:", name),
-                ));
-                if !explored_address(instructions, jump_address) && instruction_addr != jump_address
-                {
-                    disassemble_branch(instructions, jump_address, cpu);
+            // Get the instruction at the current address
+            let mut operand_addr = instruction_addr.wrapping_add(1);
+            let mut byte = cpu.mmu.read_byte(instruction_addr);
+            let is_prefixed = byte == 0xCB;
+            if is_prefixed {
+                byte = cpu.mmu.read_byte(instruction_addr.wrapping_add(1));
+                operand_addr = operand_addr.wrapping_add(1);
+            }
+            let instruction = Instruction::from_byte(byte, is_prefixed).unwrap_or(Instruction::NOP);
+            let size = instruction.size();
+
+            // Explore the branch that the jump/call instruction points to
+            match instruction {
+                Instruction::JP(_) => {
+                    let jump_address = cpu.mmu.read_word(operand_addr);
+                    add_label(instructions, "addr", jump_address);
+                    if !explored_address(instructions, jump_address) && instruction_addr != jump_address
+                    {
+                        stack.push(jump_address);
+                    }
+                }
+                Instruction::CALL(_) => {
+                    let jump_address = cpu.mmu.read_word(operand_addr);
+                    add_label(instructions, "addr", jump_address);
+                    if !explored_address(instructions, jump_address) && instruction_addr != jump_address
+                    {
+                        stack.push(jump_address);
+                    }
+                }
+                Instruction::JR(_) => {
+                    let byte = cpu.mmu.read_byte(operand_addr);
+                    let jump_address = if byte as i8 >= 0 {
+                        instruction_addr
+                            .wrapping_add(2)
+                            .wrapping_add(byte as i8 as u16)
+                    } else {
+                        instruction_addr
+                            .wrapping_add(2)
+                            .wrapping_sub((byte as i8 as i16).unsigned_abs())
+                    };
+                    add_label(instructions, "addr", jump_address);
+                    if !explored_address(instructions, jump_address) && instruction_addr != jump_address
+                    {
+                        stack.push(jump_address);
+                    }
+                }
+                _ => {}
+            }
+
+            // Record the current instruction
+            let mut instruction_bytes_str = format!("{:02X}", byte);
+            let mut instruction_bytes = Vec::new();
+            let mut instruction_arr = [0u8; 2];
+            if size > 1 {
+                for i in 1..size {
+                    let extra_byte = cpu.mmu.read_byte(instruction_addr.wrapping_add(i as u16));
+                    instruction_bytes_str.push_str(&format!("{:02X}", extra_byte));
+                    instruction_bytes.push(extra_byte);
+                    instruction_arr[i as usize - 1] = extra_byte;
                 }
             }
-            Instruction::CALL(_) => {
-                let jump_address = cpu.mmu.read_word(operand_addr);
-                let name = format!("addr_{:04X}", jump_address);
-                instructions.push((
-                    jump_address,
-                    LineType::Label(name.clone()),
-                    format!("{}:", name),
-                ));
-                if !explored_address(instructions, jump_address) && instruction_addr != jump_address
-                {
-                    disassemble_branch(instructions, jump_address, cpu);
-                }
+            instructions.push(DisassembledLine {
+                address: instruction_addr,
+                line_type: LineType::Instruction(instruction),
+                bytes: instruction_bytes,
+                text: format!("{:<7} {}", instruction_bytes_str, instruction.to_string(instruction_arr[0], instruction_arr[1], instruction_addr))
+            });
+
+            // If it always jumps when it reaches this instruction, it means the branch has ended
+            // Call is expected to return when it finishes, so don't end it.
+            match instruction {
+                Instruction::JP(JumpTest::Always) => break,
+                Instruction::RET(JumpTest::Always) => break,
+                Instruction::RST(_) => break,
+                _ => {}
             }
-            Instruction::JR(_) => {
-                let byte = cpu.mmu.read_byte(operand_addr);
-                let jump_address = if byte as i8 >= 0 {
-                    instruction_addr
-                        .wrapping_add(2)
-                        .wrapping_add(byte as i8 as u16)
-                } else {
-                    instruction_addr
-                        .wrapping_add(2)
-                        .wrapping_sub((byte as i8 as i16).unsigned_abs())
-                };
-                let name = format!("addr_{:04X}", jump_address);
-                instructions.push((
-                    jump_address,
-                    LineType::Label(name.clone()),
-                    format!("{}:", name),
-                ));
-                if !explored_address(instructions, jump_address) && instruction_addr != jump_address
-                {
-                    disassemble_branch(instructions, jump_address, cpu);
-                }
-            }
-            _ => {}
-        }
 
-        if explored_address(instructions, instruction_addr) {
-            break;
+            // Move to the next instruction address
+            instruction_addr = instruction_addr.wrapping_add(size as u16);
         }
-
-        // Add the current instruction to the list
-        let mut instruction_bytes = format!("{:02X}", byte);
-        let mut instruction_arr = [0u8; 2];
-        if size > 1 {
-            for i in 1..size {
-                let extra_byte = cpu.mmu.read_byte(instruction_addr.wrapping_add(i as u16));
-                instruction_bytes.push_str(&format!("{:02X}", extra_byte));
-                instruction_arr[i as usize - 1] = extra_byte;
-            }
-        }
-        let line = format!(
-            "{:<7} {}",
-            instruction_bytes,
-            instruction.to_string(instruction_arr[0], instruction_arr[1], instruction_addr)
-        );
-        instructions.push((instruction_addr, LineType::Instruction(instruction), line));
-
-        // If it always jumps when it reaches this instruction, it means the branch has ended
-        // Call is expected to return when it finishes, so don't end it.
-        match instruction {
-            Instruction::JP(JumpTest::Always) => break,
-            Instruction::RET(JumpTest::Always) => break,
-            Instruction::RST(_) => break,
-            _ => {}
-        }
-
-        instruction_addr = instruction_addr.wrapping_add(size as u16);
     }
 }
+

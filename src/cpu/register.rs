@@ -1,4 +1,6 @@
-﻿#[inline(always)]
+﻿use crate::gbmode::GbMode;
+
+#[inline(always)]
 fn bit(condition: bool) -> u8 {
     if condition { 1 } else { 0 }
 }
@@ -62,18 +64,46 @@ pub struct Registers {
 }
 
 impl Registers {
-    pub fn new() -> Registers {
-        Registers {
-            a: 0x00,
-            b: 0x00,
-            c: 0x00,
-            d: 0x00,
-            e: 0x00,
-            f: FlagsRegister::new(),
-            h: 0x00,
-            l: 0x00,
-            sp: 0x0000,
-            pc: 0x0000,
+    pub fn new(gb_mode: GbMode) -> Registers {
+        match gb_mode {
+            GbMode::Classic => {
+                Registers {
+                    a: 0x01,
+                    f: FlagsRegister {
+                        zero: true,
+                        subtract: false,
+                        half_carry: true,
+                        carry: true,
+                    },
+                    b: 0x00,
+                    c: 0x13,
+                    d: 0x00,
+                    e: 0xD8,
+                    h: 0x01,
+                    l: 0x4D,
+                    pc: 0x0100,
+                    sp: 0xFFFE,
+                }
+            },
+            GbMode::Color => {
+                Registers {
+                    a: 0x11,
+                    f: FlagsRegister {
+                        zero: true,
+                        subtract: false,
+                        half_carry: false,
+                        carry: false,
+                    },
+                    b: 0x00,
+                    c: 0x00,
+                    d: 0xFF,
+                    e: 0x56,
+                    h: 0x00,
+                    l: 0x0D,
+                    pc: 0x0100,
+                    sp: 0xFFFE,
+                }
+            },
         }
     }
 

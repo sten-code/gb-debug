@@ -1,6 +1,7 @@
 ﻿use crate::cartridge::Cartridge;
 use crate::cpu::instruction::{Instruction, Source8Bit, Reg16Bit, IncDecTarget, Target8Bit, LoadType, DerefTarget, JumpTest, StackTarget};
 use crate::cpu::register::Registers;
+use crate::gbmode::GbMode;
 use crate::mmu::MMU;
 
 mod register;
@@ -165,16 +166,27 @@ pub struct CPU {
     pub mmu: MMU,
     ime: bool,
     is_halted: bool,
+    gb_mode: GbMode,
 }
 
 impl CPU {
     pub fn new(cartridge: Cartridge) -> CPU {
+        let gb_mode = match cartridge.read_rom(0x143) & 0x80 {
+            0x80 => GbMode::Color,
+            _ => GbMode::Classic,
+        };
+        println!("Gb Mode: {:?}", gb_mode);
         CPU {
-            registers: Registers::new(),
-            mmu: MMU::new(cartridge),
+            registers: Registers::new(gb_mode),
+            mmu: MMU::new(cartridge, gb_mode),
             ime: false,
             is_halted: false,
+            gb_mode
         }
+    }
+
+    pub fn get_gb_mode(&self) -> GbMode {
+        self.gb_mode
     }
 
     pub fn export_state(&self) -> String {
@@ -623,7 +635,7 @@ impl CPU {
                 (self.registers.pc.wrapping_add(1), 4)
             }
             Instruction::STOP => {
-                (self.registers.pc.wrapping_add(2), 4)
+                (self.registers.pc.wrapping_add(1), 4)
             }
         }
     }

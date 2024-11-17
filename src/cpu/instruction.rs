@@ -10,7 +10,7 @@ impl Source8Bit {
     pub fn to_string(&self, byte: u8) -> String {
         match self {
             Source8Bit::HLP => "[HL]".to_string(),
-            Source8Bit::N8 => format!("0x{:02X}", byte),
+            Source8Bit::N8 => format!("${:02X}", byte),
             _ => format!("{:?}", self)
         }
     }
@@ -132,15 +132,15 @@ impl LoadType {
             LoadType::ByteFromImm(target) => format!("{}, ${:02X}", target.to_string(), byte1),
             LoadType::AFromDeref(deref) => format!("A, {}", deref.to_string()),
             LoadType::DerefFromA(deref) => format!("{}, A", deref.to_string()),
-            LoadType::AFromCD => "A, [$FF00 + C]".to_string(),
-            LoadType::CDFromA => "[$FF00 + C], A".to_string(),
+            LoadType::AFromCD => "A, [$FF00 + C]".to_owned(),
+            LoadType::CDFromA => "[$FF00 + C], A".to_owned(),
             LoadType::A8FromA => format!("[$FF00 + ${:02X}], A", byte1),
             LoadType::AFromA8 => format!("A, [$FF00 + ${:02X}]", byte1),
             LoadType::A16FromA => format!("[${:02X}{:02X}], A", byte2, byte1),
             LoadType::AFromA16 => format!("A, [${:02X}{:02X}]", byte2, byte1),
 
             LoadType::WordFromImm(target) => format!("{:?}, ${:02X}{:02X}", target, byte2, byte1),
-            LoadType::SPFromHL => "SP, HL".to_string(),
+            LoadType::SPFromHL => "SP, HL".to_owned(),
             LoadType::HLFromSPE8 => format!("HL, SP {} {}", if (byte1 as i8) >= 0 { "+" } else { "-" }, (byte1 as i8).abs()),
             LoadType::A16FromSP => format!("[${:02X}{:02X}], SP", byte2, byte1),
         }
