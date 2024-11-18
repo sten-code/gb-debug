@@ -1,10 +1,13 @@
-﻿use crate::disassembler::{disassemble, DisassembledLine, LineType};
+﻿use std::cmp::Ordering;
+use crate::cpu::instruction::Instruction;
+use crate::disassembler::{disassemble, DisassembledLine, LineType};
 use crate::ui::windows::Window;
 use crate::ui::State;
-use eframe::emath::{Align, NumExt, Pos2};
+use eframe::emath::{Align, Pos2};
 use eframe::epaint::Color32;
 use egui::scroll_area::ScrollAreaOutput;
 use egui::{Rect, RichText, ScrollArea, Sense, TextStyle, TextWrapMode, Ui, Vec2, WidgetInfo, WidgetText, WidgetType};
+use crate::assembler;
 
 pub struct Disassembly {
     disassembly: Vec<DisassembledLine>,
@@ -50,6 +53,8 @@ impl Window for Disassembly {
                                 ui.scroll_to_rect(rect, Some(Align::TOP));
                             }
                             // println!("count: {}", height / LABEL_HEIGHT);
+                            let mut deletions = Vec::new();
+                            let mut insertions = Vec::new();
                             for line in self.disassembly
                                 .iter()
                                 .skip((output.state.offset.y / LABEL_HEIGHT) as usize)
@@ -109,6 +114,94 @@ impl Window for Disassembly {
                                             writer.copied_text = format!("{:04X}", line.address);
                                         });
                                         ui.close_menu();
+                                    }
+                                    ui.menu_button("Patch", |ui| {
+                                        ui.set_width(200.0);
+                                        if ui.button("Convert to NOP").clicked() {
+                                            deletions.push(line.address as usize);
+
+                                            let mut instruction_byte = state.cpu.mmu.read_byte(line.address);
+                                            let is_prefixed = if instruction_byte == 0xCB {
+                                                instruction_byte = state.cpu.mmu.read_byte(line.address + 1);
+                                                true
+                                            } else {
+                                                false
+                                            };
+
+                                            if let Some(instruction) = Instruction::from_byte(instruction_byte, is_prefixed) {
+                                                let size = instruction.size();
+                                                for i in 0..size {
+                                                    let address = line.address + i as u16;
+                                                    state.cpu.mmu.cartridge.data[address as usize] = 0x00;
+                                                    state.cpu.mmu.cartridge.mbc.force_write_rom(address, 0x00);
+                                                    insertions.push((
+                                                        address,
+                                                        DisassembledLine {
+                                                            address,
+                                                            text: "00 NOP".to_owned(),
+                                                            line_type: LineType::Instruction(instruction.clone()),
+                                                            bytes: vec![0x00],
+                                                        }
+                                                    ));
+                                                }
+                                            }
+
+                                            ui.close_menu();
+                                        }
+                                        if ui.button("Assemble").clicked() {
+                                            let instructions = assembler::assemble("LD A, $00");
+
+                                            let mut address = line.address;
+                                            for full_instruction in instructions {
+                                                let bytes = full_instruction.to_bytes();
+                                                address += bytes.len() as u16;
+
+                                                let mut bytes_str = String::new();
+                                                for i in 0..bytes.len() {
+                                                    let address = line.address + i as u16;
+                                                    state.cpu.mmu.cartridge.data[address as usize] = bytes[i];
+                                                    state.cpu.mmu.cartridge.mbc.force_write_rom(address, bytes[i]);
+                                                    bytes_str.push_str(&format!("{:02X}", bytes[i]));
+                                                }
+
+                                                insertions.push((
+                                                    address,
+                                                    DisassembledLine {
+                                                        address,
+                                                        text: format!("{} {}", bytes_str, full_instruction.instruction.to_string(
+                                                            *full_instruction.operands.get(0).unwrap_or(&0u8),
+                                                            *full_instruction.operands.get(1).unwrap_or(&0u8),
+                                                            address
+                                                        )),
+                                                        line_type: LineType::Instruction(Instruction::NOP),
+                                                        bytes,
+                                                    }
+                                                ));
+                                            }
+
+
+                                            ui.close_menu();
+                                        }
+                                    });
+                                });
+                            }
+
+                            for deletion in deletions {
+                                self.disassembly.retain(|x| x.address != deletion as u16);
+                            }
+
+                            let length = insertions.len();
+                            for insertion in insertions {
+                                self.disassembly.insert(insertion.0 as usize, insertion.1);
+                            }
+                            if length > 0 {
+                                self.disassembly.sort_by(|a, b| {
+                                    if matches!(a.line_type, LineType::Label(_)) && a.address == b.address {
+                                        Ordering::Less
+                                    } else if matches!(b.line_type, LineType::Label(_)) && a.address == b.address {
+                                        Ordering::Greater
+                                    } else {
+                                        a.address.cmp(&b.address)
                                     }
                                 });
                             }

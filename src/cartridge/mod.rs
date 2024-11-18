@@ -15,8 +15,8 @@ pub fn has_battery(cartridge_type: u8) -> bool {
 
 
 pub struct Cartridge {
-    data: Vec<u8>,
-    mbc: Box<dyn MBC>,
+    pub data: Vec<u8>,
+    pub mbc: Box<dyn MBC>,
     has_battery: bool,
 }
 

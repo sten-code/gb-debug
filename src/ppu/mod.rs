@@ -1,4 +1,5 @@
-﻿use crate::gbmode::GbMode;
+﻿use std::cmp::Ordering;
+use crate::gbmode::GbMode;
 
 #[inline(always)]
 fn bit(value: bool, position: u8) -> u8 {
@@ -335,20 +336,20 @@ impl PPU {
         }
     }
 
+
     fn draw_sprites(&mut self) {
-        if !self.sprite_enabled {
-            return;
-        }
+        if !self.sprite_enabled { return; }
+
+        let line = self.ly as i32;
+        let sprite_size = self.sprite_size as i32;
 
         let mut sprites = [(0, 0, 0); 10];
         let mut sprite_count = 0;
         for index in 0..40 {
-            let sprite_addr = index * 4;
-            let sprite_y = self.read_oam(sprite_addr) as u16 as i16 - 16;
-            if (self.ly as i16) < sprite_y || (self.ly as i16) >= sprite_y + (self.sprite_size as i16) {
-                continue;
-            }
-            let sprite_x = self.read_oam(sprite_addr + 1) as u16 as i16 - 8;
+            let sprite_addr = (index as u16) * 4;
+            let sprite_y = self.read_oam(sprite_addr + 0) as u16 as i32 - 16;
+            if line < sprite_y || line >= sprite_y + sprite_size { continue; }
+            let sprite_x = self.read_oam(sprite_addr + 1) as u16 as i32 - 8;
             sprites[sprite_count] = (sprite_x, sprite_y, index);
             sprite_count += 1;
             if sprite_count >= 10 {
@@ -366,58 +367,50 @@ impl PPU {
         }
 
         for &(sprite_x, sprite_y, i) in &sprites[..sprite_count] {
-            if sprite_x < -7 || sprite_x >= (SCREEN_WIDTH as i16) {
-                continue;
-            }
+            if sprite_x < -7 || sprite_x >= (SCREEN_WIDTH as i32) { continue; }
 
-            let sprite_addr = 0xFE00 + (i as u16) * 4;
-            let tile_num = (self.read_oam((sprite_addr + 2) - 0xFE00) & (if self.sprite_size == 16 { 0xFE } else { 0xFF })) as u16;
-            let flags = self.read_oam((sprite_addr + 3) - 0xFE00);
-            let palette_num = flags & 0x07; // First 3 bits
-            let vram1 = is_set(flags, 3);
-            let use_palette1 = is_set(flags, 4);
-            let x_flip = is_set(flags, 5);
-            let y_flip = is_set(flags, 6);
-            let below_bg = is_set(flags, 7);
+            let sprite_addr = (i as u16) * 4;
+            let tile_num = (self.read_oam(sprite_addr + 2) & (if self.sprite_size == 16 { 0xFE } else { 0xFF })) as u16;
+            let flags = self.read_oam(sprite_addr + 3) as usize;
+            let palette_num = flags & 0x07;
+            let vram1: bool = flags & (1 << 3) != 0;
+            let use_palette1: bool = flags & (1 << 4) != 0;
+            let x_flip: bool = flags & (1 << 5) != 0;
+            let y_flip: bool = flags & (1 << 6) != 0;
+            let below_bg: bool = flags & (1 << 7) != 0;
 
-            let tile_y = if y_flip {
-                self.sprite_size as u16 - 1 - (self.ly as i16 - sprite_y) as u16
+            let tile_y: u16 = if y_flip {
+                (sprite_size - 1 - (line - sprite_y)) as u16
             } else {
-                (self.ly as i16 - sprite_y) as u16
+                (line - sprite_y) as u16
             };
 
-            let tile_addr = tile_num * 16 + tile_y as u16 * 2;
-            let (b1, b2) = if vram1 && self.gb_mode == GbMode::Color {
-                (self.vram[1][tile_addr as usize], self.vram[1][tile_addr as usize + 1])
+            let tile_address = tile_num * 16 + tile_y * 2;
+            let (bit1, bit2) = if vram1 && self.gb_mode == GbMode::Color {
+                (self.vram[1][tile_address as usize], self.vram[1][tile_address as usize + 1])
             } else {
-                (self.vram[0][tile_addr as usize], self.vram[0][tile_addr as usize + 1])
+                (self.vram[0][tile_address as usize], self.vram[0][tile_address as usize + 1])
             };
 
             for x in 0..8 {
-                if sprite_x + x < 0 || sprite_x + x >= SCREEN_WIDTH as i16 {
-                    continue;
-                }
+                if sprite_x + x < 0 || sprite_x + x >= (SCREEN_WIDTH as i32) { continue; }
 
-                let x_bit = 1 << (if x_flip { x } else { 7 - x });
-                let color_num = bit(b2 & x_bit != 0, 1) | bit(b1 & x_bit != 0, 0);
-
+                let x_bit = 1 << (if x_flip { x } else { 7 - x } as u32);
+                let color_num = bit(bit2 & x_bit != 0, 1) | bit(bit1 & x_bit != 0, 0);
                 if color_num == 0 {
                     continue;
                 }
 
                 if self.gb_mode == GbMode::Color {
-                    if self.bg_enabled && self.bg_priority[(sprite_x + x) as usize] == PriorityType::PriorityFlag
-                        || (below_bg && self.bg_priority[(sprite_x + x) as usize] == PriorityType::Color0) {
+                    if self.bg_enabled && (self.bg_priority[(sprite_x + x) as usize] == PriorityType::PriorityFlag || (below_bg && self.bg_priority[(sprite_x + x) as usize] != PriorityType::Color0)) {
                         continue;
                     }
-                    let r = self.cobj_palette[palette_num as usize][color_num as usize][0];
-                    let g = self.cobj_palette[palette_num as usize][color_num as usize][1];
-                    let b = self.cobj_palette[palette_num as usize][color_num as usize][2];
+                    let r = self.cobj_palette[palette_num][color_num as usize][0];
+                    let g = self.cobj_palette[palette_num][color_num as usize][1];
+                    let b = self.cobj_palette[palette_num][color_num as usize][2];
                     self.set_rgb((sprite_x + x) as u8, r, g, b);
                 } else {
-                    if below_bg && self.bg_priority[(sprite_x + x) as usize] != PriorityType::Color0 {
-                        continue;
-                    }
+                    if below_bg && self.bg_priority[(sprite_x + x) as usize] != PriorityType::Color0 { continue; }
                     self.set_color((sprite_x + x) as u8, PPU::get_monochrome_palette_color(
                         if use_palette1 { self.obj_palette1 } else { self.obj_palette0 },
                         color_num,

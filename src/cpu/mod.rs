@@ -436,14 +436,14 @@ impl CPU {
                         self.mmu.write_byte(address, self.registers.a);
                         (self.registers.pc.wrapping_add(1), 8)
                     }
-                    LoadType::AFromCD => {
+                    LoadType::AFromDerefC => {
                         // LD A, [0xFF00 + C]
                         let address = 0xFF00u16.wrapping_add(self.registers.c as u16);
                         let value = self.mmu.read_byte(address);
                         self.registers.a = value;
                         (self.registers.pc.wrapping_add(1), 8)
                     }
-                    LoadType::CDFromA => {
+                    LoadType::DerefCFromA => {
                         // LD [0xFF00 + C], A
                         let address = 0xFF00u16.wrapping_add(self.registers.c as u16);
                         self.mmu.write_byte(address, self.registers.a);

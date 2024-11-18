@@ -1,11 +1,11 @@
 use crate::cartridge::Cartridge;
 use crate::cpu::CPU;
 use crate::ui::{Pane, TreeManager};
-use egui::{Button, CentralPanel, Frame, TopBottomPanel, Widget};
+use egui::{Button, CentralPanel, TopBottomPanel, Widget};
 use std::fs::File;
 use std::io::Read;
 use std::ops::BitAndAssign;
-use std::sync::Arc;
+use egui::debug_text::print;
 use egui_tiles::{Container, Linear, LinearDir, Tile, Tiles};
 use crate::cartridge::licensee::Licensee;
 use crate::ui::windows::{Breakpoints, Disassembly, GameWindow, MemoryDump, Registers, TileMapViewer};
@@ -19,6 +19,7 @@ mod mbc;
 mod cartridge;
 mod disassembler;
 mod ui;
+mod assembler;
 
 #[inline(always)]
 pub fn bit(condition: bool) -> u8 {
@@ -152,7 +153,13 @@ impl eframe::App for Application {
                     .min_size([50.0, 0.0].into())
                     .ui(ui);
                 if disassemble_btn.clicked() {
-                    // disassemble(&self.behavior.state);
+                    for tile in self.tree.tiles.iter_mut() {
+                        if let Tile::Pane(pane) = tile.1 {
+                            if let Pane::Disassembly(disassembly) = pane {
+                                disassembly.disassemble(&self.tree_manager.state);
+                            }
+                        }
+                    }
                 }
             });
         });

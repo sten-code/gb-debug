@@ -30,6 +30,10 @@ impl MBC1 {
 }
 
 impl MBC for MBC1 {
+    fn force_write_rom(&mut self, address: u16, value: u8) {
+        self.rom[address as usize] = value;
+    }
+
     fn read_rom(&self, address: u16) -> u8 {
         let bank = if address < 0x4000 {
             if self.banking_mode == 0 {
@@ -54,15 +58,15 @@ impl MBC for MBC1 {
 
     fn write_rom(&mut self, address: u16, value: u8) {
         match address {
-            0x0000 ..= 0x1FFF => { self.ram_enabled = value & 0xF == 0xA; },
-            0x2000 ..= 0x3FFF => {
+            0x0000..=0x1FFF => { self.ram_enabled = value & 0xF == 0xA; }
+            0x2000..=0x3FFF => {
                 let lower_bits = match value & 0x1F {
                     0 => 1,
                     n => n,
                 };
                 self.selected_rom_bank = ((self.selected_rom_bank & 0x60) | lower_bits) % self.rom_bank_count;
-            },
-            0x4000 ..= 0x5FFF => {
+            }
+            0x4000..=0x5FFF => {
                 if self.rom_bank_count > 0x20 {
                     let upper_bits = value & 0x03 % (self.rom_bank_count >> 5);
                     self.selected_rom_bank = self.selected_rom_bank & 0x1F | (upper_bits << 5)
@@ -70,14 +74,14 @@ impl MBC for MBC1 {
                 if self.rom_bank_count > 1 {
                     self.selected_rom_bank = value & 0x03;
                 }
-            },
-            0x6000 ..= 0x7FFF => { self.banking_mode = value & 0x01; },
+            }
+            0x6000..=0x7FFF => { self.banking_mode = value & 0x01; }
             _ => panic!("Could not write to {:04X} (MBC1)", address),
         }
     }
     fn write_ram(&mut self, address: u16, value: u8) {
         if !self.ram_enabled {
-            return
+            return;
         }
         let ram_bank = if self.banking_mode == 1 { self.selected_ram_bank } else { 0 };
         let address = (ram_bank as u16 * 0x2000) | (address & 0x1FFF);

@@ -104,10 +104,11 @@ pub struct TileMapViewer {
     tile_map_address: TileMapAddress,
 }
 
+const TILE_IMAGE_SIZE: f32 = 8.0;
 impl TileMapViewer {
     pub fn new(ctx: &egui::Context) -> Self {
         let mut tiles = Vec::new();
-        for i in 0..256 {
+        for i in 0..128 * 3 {
             let buffer = [0u8, 0u8, 0u8].iter().cloned().cycle().take(64 * 3).collect::<Vec<u8>>();
             let color_image = egui::ColorImage::from_rgb([8, 8], &buffer);
             let texture = ctx.load_texture(format!("tile_{}", i), color_image, TextureOptions::default());
@@ -130,13 +131,16 @@ impl TileMapViewer {
         }
     }
 
+    fn set_pixel(buffer: &mut [u8], index: usize, r: u8, g: u8, b: u8) {
+        // RGB555 to RGB888
+        buffer[index + 0] = ((r as u32 * 13 + g as u32 * 2 + b as u32) >> 1) as u8;
+        buffer[index + 1] = ((g as u32 * 3 + b as u32) << 1) as u8;
+        buffer[index + 2] = ((r as u32 * 3 + g as u32 * 2 + b as u32 * 11) >> 1) as u8;
+    }
+
     pub fn update_textures(&mut self, cpu: &CPU) {
         for (i, tile) in self.tiles.iter_mut().enumerate() {
-            let address = match self.tile_data_address {
-                TileDataAddress::Auto => cpu.mmu.ppu.tile_data_addr + (i as u16 * 16),
-                TileDataAddress::X8000 => 0x8000 + (i as u16 * 16),
-                TileDataAddress::X8800 => 0x8800 + (i as u16 * 16),
-            };
+            let address = 0x8000 + (i as u16 * 16);
             for row in 0..8 {
                 let byte1 = cpu.mmu.read_byte(address + row * 2);
                 let byte2 = cpu.mmu.read_byte(address + row * 2 + 1);
@@ -164,14 +168,14 @@ impl TileMapViewer {
                                 ColorPalette::OCP6 => &cpu.mmu.ppu.cobj_palette[6],
                                 ColorPalette::OCP7 => &cpu.mmu.ppu.cobj_palette[7],
                             };
-                            let r = palette[color_num as usize][0];
-                            let g = palette[color_num as usize][1];
-                            let b = palette[color_num as usize][2];
 
-                            // RGB555 to RGB888
-                            tile.buffer[row as usize * 8 * 3 + pixel as usize * 3 + 0] = ((r as u32 * 13 + g as u32 * 2 + b as u32) >> 1) as u8;
-                            tile.buffer[row as usize * 8 * 3 + pixel as usize * 3 + 1] = ((g as u32 * 3 + b as u32) << 1) as u8;
-                            tile.buffer[row as usize * 8 * 3 + pixel as usize * 3 + 2] = ((r as u32 * 3 + g as u32 * 2 + b as u32 * 11) >> 1) as u8;
+                            TileMapViewer::set_pixel(
+                                &mut tile.buffer,
+                                row as usize * 8 * 3 + pixel as usize * 3,
+                                palette[color_num as usize][0],
+                                palette[color_num as usize][1],
+                                palette[color_num as usize][2],
+                            );
                         }
                         GbMode::Classic => {
                             let color = PPU::get_monochrome_palette_color(match self.selected_classic_palette {
@@ -196,6 +200,7 @@ impl TileMapViewer {
     pub fn show_tiles(&mut self, state: &mut State, ui: &mut Ui) {
         ui.horizontal(|ui| {
             ui.add_space(5.0);
+            ui.checkbox(&mut self.show_grid, "Show Grid");
             match state.cpu.get_gb_mode() {
                 GbMode::Classic => ComboBox::from_label("Palette")
                     .selected_text(format!("{:?}", self.selected_classic_palette))
@@ -230,34 +235,61 @@ impl TileMapViewer {
         ui.spacing_mut().item_spacing = [0.0, 0.0].into();
         ui.spacing_mut().interact_size = [0.0, 0.0].into();
         ui.vertical(|ui| {
-            for row in self.tiles.chunks(16) {
+            for (i, row) in self.tiles.chunks(16).enumerate() {
                 ui.horizontal(|ui| {
                     ui.add_space(5.0);
                     for tile in row {
-                        if self.show_grid {
+                        let response = if self.show_grid {
                             Frame::none()
                                 .stroke(Stroke::new(1.0, Color32::BLACK))
                                 .show(ui, |ui| {
                                     Image::new(&tile.texture)
-                                        .fit_to_exact_size([32.0, 32.0].into())
+                                        .fit_to_exact_size([16.0, 16.0].into())
                                         .ui(ui);
-                                });
+                                }).response
                         } else {
                             Image::new(&tile.texture)
-                                .fit_to_exact_size([32.0, 32.0].into())
-                                .ui(ui);
-                        }
+                                .fit_to_exact_size([16.0, 16.0].into())
+                                .ui(ui)
+                        };
+                        if response.hovered() {}
                     }
                 });
+                if i % 8 == 7 {
+                    ui.add_space(5.0);
+                }
             }
         });
     }
 
     pub fn show_background(&mut self, state: &mut State, ui: &mut Ui) {
-        const TILE_IMAGE_SIZE: f32 = 16.0;
+        ui.horizontal(|ui| {
+            ui.add_space(5.0);
+            ui.vertical(|ui| {
+                ui.checkbox(&mut self.show_grid, "Show Grid");
+                ui.checkbox(&mut self.show_screen_grid, "Show Screen Grid");
+            });
+            ui.add_space(5.0);
+            ui.vertical(|ui| {
+                ComboBox::from_label("Tile Data Address")
+                    .selected_text(self.tile_data_address.to_string())
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut self.tile_data_address, TileDataAddress::Auto, TileDataAddress::Auto.to_string());
+                        ui.selectable_value(&mut self.tile_data_address, TileDataAddress::X8000, TileDataAddress::X8000.to_string());
+                        ui.selectable_value(&mut self.tile_data_address, TileDataAddress::X8800, TileDataAddress::X8800.to_string());
+                    });
+                ComboBox::from_label("Tile Map Address")
+                    .selected_text(self.tile_map_address.to_string())
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut self.tile_map_address, TileMapAddress::Auto, TileMapAddress::Auto.to_string());
+                        ui.selectable_value(&mut self.tile_map_address, TileMapAddress::X9800, TileMapAddress::X9800.to_string());
+                        ui.selectable_value(&mut self.tile_map_address, TileMapAddress::X9C00, TileMapAddress::X9C00.to_string());
+                    });
+            });
+        });
+
         let x = ui.cursor().min.x + 5.0 + (state.cpu.mmu.ppu.scx as f32 * (TILE_IMAGE_SIZE / 8.0));
         let y = ui.cursor().min.y + (state.cpu.mmu.ppu.scy as f32 * (TILE_IMAGE_SIZE / 8.0));
-        let mut buffer = [0u8, 0u8, 0u8].iter().cloned().cycle().take(64 * 3).collect::<Vec<u8>>();
         ui.spacing_mut().item_spacing = [0.0, 0.0].into();
         ui.spacing_mut().interact_size = [0.0, 0.0].into();
         ui.vertical(|ui| {
@@ -275,9 +307,9 @@ impl TileMapViewer {
                         let tile = match self.tile_data_address {
                             TileDataAddress::Auto => {
                                 if state.cpu.mmu.ppu.tile_data_addr == 0x8000 {
-                                    &mut self.tiles[tile_id as usize]
+                                    &mut self.tiles[128 + tile_id as usize]
                                 } else {
-                                    &mut self.tiles[(128 + tile_id as i8 as i16) as usize]
+                                    &mut self.tiles[(256 + tile_id as i8 as i16) as usize]
                                 }
                             }
                             TileDataAddress::X8000 => &mut self.tiles[tile_id as usize],
@@ -288,15 +320,15 @@ impl TileMapViewer {
                             let attributes = state.cpu.mmu.ppu.vram[1][offset as usize];
                             let palette = attributes & 0b111;
                             for (i, color_num) in tile.raw_buffer.iter().enumerate() {
-                                let r = state.cpu.mmu.ppu.cbg_palette[palette as usize][*color_num as usize][0];
-                                let g = state.cpu.mmu.ppu.cbg_palette[palette as usize][*color_num as usize][1];
-                                let b = state.cpu.mmu.ppu.cbg_palette[palette as usize][*color_num as usize][2];
-
-                                buffer[i * 3 + 0] = ((r as u32 * 13 + g as u32 * 2 + b as u32) >> 1) as u8;
-                                buffer[i * 3 + 1] = ((g as u32 * 3 + b as u32) << 1) as u8;
-                                buffer[i * 3 + 2] = ((r as u32 * 3 + g as u32 * 2 + b as u32 * 11) >> 1) as u8;
+                                TileMapViewer::set_pixel(
+                                    &mut tile.buffer,
+                                    i * 3,
+                                    state.cpu.mmu.ppu.cbg_palette[palette as usize][*color_num as usize][0],
+                                    state.cpu.mmu.ppu.cbg_palette[palette as usize][*color_num as usize][1],
+                                    state.cpu.mmu.ppu.cbg_palette[palette as usize][*color_num as usize][2],
+                                );
                             }
-                            tile.texture.set(egui::ColorImage::from_rgb([8, 8], &buffer), TextureOptions::NEAREST);
+                            tile.texture.set(egui::ColorImage::from_rgb([8, 8], &tile.buffer), TextureOptions::NEAREST);
                         }
 
                         if self.show_grid {
@@ -327,33 +359,9 @@ impl TileMapViewer {
 
 impl Window for TileMapViewer {
     fn show(&mut self, state: &mut State, ui: &mut Ui) {
-        ui.add_space(5.0);
-        ui.horizontal(|ui| {
-            ui.add_space(5.0);
-            ui.vertical(|ui| {
-                ui.checkbox(&mut self.show_grid, "Show Grid");
-                ui.checkbox(&mut self.show_screen_grid, "Show Screen Grid");
-            });
-            ui.add_space(5.0);
-            ui.vertical(|ui| {
-                ComboBox::from_label("Tile Data Address")
-                    .selected_text(self.tile_data_address.to_string())
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.tile_data_address, TileDataAddress::Auto, TileDataAddress::Auto.to_string());
-                        ui.selectable_value(&mut self.tile_data_address, TileDataAddress::X8000, TileDataAddress::X8000.to_string());
-                        ui.selectable_value(&mut self.tile_data_address, TileDataAddress::X8800, TileDataAddress::X8800.to_string());
-                    });
-                ComboBox::from_label("Tile Map Address")
-                    .selected_text(self.tile_map_address.to_string())
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.tile_map_address, TileMapAddress::Auto, TileMapAddress::Auto.to_string());
-                        ui.selectable_value(&mut self.tile_map_address, TileMapAddress::X9800, TileMapAddress::X9800.to_string());
-                        ui.selectable_value(&mut self.tile_map_address, TileMapAddress::X9C00, TileMapAddress::X9C00.to_string());
-                    });
-            });
-        });
-
         self.update_textures(&state.cpu);
+
+        ui.add_space(5.0);
         ui.horizontal(|ui| {
             ui.add_space(5.0);
             ui.selectable_value(&mut self.selected_tab, SelectedTab::Tiles, "Tiles");

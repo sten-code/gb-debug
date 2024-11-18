@@ -59,13 +59,13 @@ impl MBC3 {
         }
 
         let time_diff = match time::SystemTime::now().duration_since(tzero) {
-            Ok(n) => { n.as_secs() },
-            _ => { 0 },
+            Ok(n) => { n.as_secs() }
+            _ => { 0 }
         };
         self.rtc_ram[0] = (time_diff % 60) as u8;
         self.rtc_ram[1] = ((time_diff / 60) % 60) as u8;
         self.rtc_ram[2] = ((time_diff / 3600) % 24) as u8;
-        let days = time_diff / (3600*24);
+        let days = time_diff / (3600 * 24);
         self.rtc_ram[3] = days as u8;
         self.rtc_ram[4] = (self.rtc_ram[4] & 0xFE) | (((days >> 8) & 0x01) as u8);
         if days >= 512 {
@@ -94,6 +94,10 @@ impl MBC3 {
 }
 
 impl MBC for MBC3 {
+    fn force_write_rom(&mut self, address: u16, value: u8) {
+        self.rom[address as usize] = value;
+    }
+
     fn read_rom(&self, address: u16) -> u8 {
         let index = if address < 0x4000 {
             address as usize
@@ -122,11 +126,14 @@ impl MBC for MBC3 {
             // Writing any value with the lower 4 bits being 0xA enables the RAM and RTC registers.
             0x0000..=0x1FFF => self.ram_enabled = value & 0xF == 0xA,
 
-            0x2000..=0x3FFF => self.selected_rom_bank = match value & 0x7F { 0 => 1, n => n },
+            0x2000..=0x3FFF => self.selected_rom_bank = match value & 0x7F {
+                0 => 1,
+                n => n
+            },
             0x4000..=0x5FFF => {
                 self.rtc_selected = is_set(value, 3);
                 self.selected_ram_bank = value & 0x7;
-            },
+            }
             0x6000..=0x7FFF => self.latch_rtc_reg(),
             _ => panic!("Invalid MBC3 address: {:04X} (MBC3)", address),
         }
