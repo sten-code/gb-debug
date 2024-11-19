@@ -39,6 +39,10 @@ fn disassemble_function(
 }
 
 pub fn disassemble(cpu: &CPU) -> Vec<DisassembledLine> {
+    disassemble_extra(cpu, Vec::new())
+}
+
+pub fn disassemble_extra(cpu: &CPU, extra_addresses: Vec<u16>) -> Vec<DisassembledLine> {
     println!("Disassembling Instruction Tree...");
     let mut instructions = Vec::new();
 
@@ -61,6 +65,10 @@ pub fn disassemble(cpu: &CPU) -> Vec<DisassembledLine> {
 
     // explore main function
     disassemble_function(&mut instructions, 0x0100, "main", cpu);
+
+    for address in extra_addresses {
+        disassemble_function(&mut instructions, address, "indirect", cpu);
+    }
 
     println!("Cleaning up labels...");
     let mut seen: HashMap<u16, bool> = HashMap::new();
@@ -129,7 +137,7 @@ fn explored_address(instructions: &[DisassembledLine], address: u16) -> bool {
     })
 }
 
-fn disassemble_branch(
+pub fn disassemble_branch(
     instructions: &mut Vec<DisassembledLine>,
     start_addr: u16,
     cpu: &CPU,
@@ -209,7 +217,7 @@ fn disassemble_branch(
                 address: instruction_addr,
                 line_type: LineType::Instruction(instruction),
                 bytes: instruction_bytes,
-                text: format!("{:<7} {}", instruction_bytes_str, instruction.to_string(instruction_arr[0], instruction_arr[1], instruction_addr))
+                text: format!("{:<7} {}", instruction_bytes_str, instruction.to_string(instruction_arr[0], instruction_arr[1], instruction_addr)),
             });
 
             // If it always jumps when it reaches this instruction, it means the branch has ended

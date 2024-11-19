@@ -52,6 +52,7 @@ impl From<u8> for FlagsRegister {
 #[derive(Copy, Clone)]
 pub struct Registers {
     gb_mode: GbMode,
+    using_boot_rom: bool,
     pub a: u8,
     pub b: u8,
     pub c: u8,
@@ -65,85 +66,74 @@ pub struct Registers {
 }
 
 impl Registers {
-    pub fn new(gb_mode: GbMode) -> Registers {
-        match gb_mode {
-            GbMode::Classic => {
-                Registers {
-                    gb_mode,
-                    a: 0x01,
-                    f: FlagsRegister {
-                        zero: true,
-                        subtract: false,
-                        half_carry: true,
-                        carry: true,
-                    },
-                    b: 0x00,
-                    c: 0x13,
-                    d: 0x00,
-                    e: 0xD8,
-                    h: 0x01,
-                    l: 0x4D,
-                    pc: 0x0100,
-                    sp: 0xFFFE,
-                }
-            },
-            GbMode::Color => {
-                Registers {
-                    gb_mode,
-                    a: 0x11,
-                    f: FlagsRegister {
-                        zero: true,
-                        subtract: false,
-                        half_carry: false,
-                        carry: false,
-                    },
-                    b: 0x00,
-                    c: 0x00,
-                    d: 0xFF,
-                    e: 0x56,
-                    h: 0x00,
-                    l: 0x0D,
-                    pc: 0x0100,
-                    sp: 0xFFFE,
-                }
-            },
-        }
+    pub fn new(gb_mode: GbMode, using_boot_rom: bool) -> Self {
+        let mut registers = Self {
+            gb_mode,
+            using_boot_rom,
+            a: 0x00,
+            f: FlagsRegister::new(),
+            b: 0x00,
+            c: 0x00,
+            d: 0x00,
+            e: 0x00,
+            h: 0x00,
+            l: 0x00,
+            pc: 0x0100,
+            sp: 0xFFFE,
+        };
+        registers.reset();
+        registers
     }
 
     pub fn reset(&mut self) {
-        match self.gb_mode {
-            GbMode::Color => {
-                self.a = 0x11;
-                self.f.zero = true;
-                self.f.subtract = false;
-                self.f.half_carry = false;
-                self.f.carry = false;
-                self.b = 0x00;
-                self.c = 0x00;
-                self.d = 0xFF;
-                self.e = 0x56;
-                self.h = 0x00;
-                self.l = 0x0D;
-                self.pc = 0x0100;
-                self.sp = 0xFFFE;
-            }
-            GbMode::Classic => {
-                self.a = 0x01;
-                self.f.zero = true;
-                self.f.subtract = false;
-                self.f.half_carry = true;
-                self.f.carry = true;
-                self.b = 0x00;
-                self.c = 0x13;
-                self.d = 0x00;
-                self.e = 0xD8;
-                self.h = 0x01;
-                self.l = 0x4D;
-                self.pc = 0x0100;
-                self.sp = 0xFFFE;
+        if self.using_boot_rom {
+            self.a = 0x00;
+            self.f.zero = false;
+            self.f.subtract = false;
+            self.f.half_carry = false;
+            self.f.carry = false;
+            self.b = 0x00;
+            self.c = 0x00;
+            self.d = 0x00;
+            self.e = 0x00;
+            self.h = 0x00;
+            self.l = 0x0D;
+            self.pc = 0x00;
+            self.sp = 0x00;
+        } else {
+            match self.gb_mode {
+                GbMode::Color => {
+                    self.a = 0x11;
+                    self.f.zero = true;
+                    self.f.subtract = false;
+                    self.f.half_carry = false;
+                    self.f.carry = false;
+                    self.b = 0x00;
+                    self.c = 0x00;
+                    self.d = 0xFF;
+                    self.e = 0x56;
+                    self.h = 0x00;
+                    self.l = 0x0D;
+                    self.pc = 0x0100;
+                    self.sp = 0xFFFE;
+                }
+                GbMode::Classic => {
+                    self.a = 0x01;
+                    self.f.zero = true;
+                    self.f.subtract = false;
+                    self.f.half_carry = true;
+                    self.f.carry = true;
+                    self.b = 0x00;
+                    self.c = 0x13;
+                    self.d = 0x00;
+                    self.e = 0xD8;
+                    self.h = 0x01;
+                    self.l = 0x4D;
+                    self.pc = 0x0100;
+                    self.sp = 0xFFFE;
+                }
             }
         }
-        
     }
 
     pub fn get_af(&self) -> u16 {
@@ -204,7 +194,7 @@ mod tests {
 
     #[test]
     fn set_bc() {
-        let mut registers = Registers::new();
+        let mut registers = Registers::from_mode(GbMode::Classic);
         registers.set_bc(0b1010_1111_1100_1100);
         assert_eq!(registers.b, 0b1010_1111u8, "b");
         assert_eq!(registers.c, 0b1100_1100u8, "c");
@@ -212,7 +202,7 @@ mod tests {
 
     #[test]
     fn set_f_from_u8() {
-        let mut registers = Registers::new();
+        let mut registers = Registers::from_mode(GbMode::Classic);
         let value = 0b1100_0000;
         registers.f = value.into();
         let result: u8 = registers.f.into();
@@ -225,7 +215,7 @@ mod tests {
 
     #[test]
     fn set_f() {
-        let mut registers = Registers::new();
+        let mut registers = Registers::from_mode(GbMode::Classic);
         let value: FlagsRegister = 0b0011_0000u8.into();
         registers.f = value;
         assert_eq!(registers.f.zero, false, "zero");

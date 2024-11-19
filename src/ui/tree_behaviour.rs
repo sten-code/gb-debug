@@ -37,7 +37,7 @@ pub struct TreeManager {
 }
 
 impl TreeManager {
-    pub fn new(cc: &eframe::CreationContext<'_>, cpu: Box<CPU>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>, cpu: Option<Box<CPU>>) -> Self {
         let mut simplification_options = egui_tiles::SimplificationOptions::default();
         simplification_options.all_panes_must_have_tabs = true;
 

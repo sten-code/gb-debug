@@ -1,10 +1,11 @@
 use crate::cartridge::Cartridge;
 use crate::cpu::CPU;
 use crate::ui::{Pane, TreeManager};
-use egui::{Button, CentralPanel, TopBottomPanel, Widget};
+use egui::{Button, CentralPanel, Spacing, Stroke, TopBottomPanel, Widget};
 use std::fs::File;
 use std::io::Read;
 use std::ops::BitAndAssign;
+use eframe::epaint::Color32;
 use egui::debug_text::print;
 use egui_tiles::{Container, Linear, LinearDir, Tile, Tiles};
 use crate::cartridge::licensee::Licensee;
@@ -27,30 +28,15 @@ pub fn bit(condition: bool) -> u8 {
 }
 
 fn main() {
-    let mut file = File::open("roms/games/PokemonRed.gbc").unwrap();
-    let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer).unwrap();
-
-    let cartridge = Cartridge::new(buffer);
-    println!("Title: {}", cartridge.get_title());
-    println!("Licensee: {}", cartridge.get_licensee().unwrap_or(Licensee::None));
-
-
-    let mut title = format!("GameBoy Debugger | {}", cartridge.get_title());
-    if let Some(licensee) = cartridge.get_licensee() {
-        title += &format!(" | {}", licensee);
-    }
-
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([1600.0, 900.0]),
         ..Default::default()
     };
     eframe::run_native(
-        &title,
+        "GameBoy Debugger",
         options,
         Box::new(|cc| {
-            let cpu = Box::new(CPU::new(cartridge));
-            Ok(Box::new(Application::new(cc, cpu)))
+            Ok(Box::new(Application::new(cc, None)))
         }),
     ).unwrap_or_else(|e| {
         eprintln!("Error: {}", e);
@@ -63,7 +49,7 @@ struct Application {
 }
 
 impl Application {
-    fn new(cc: &eframe::CreationContext<'_>, cpu: Box<CPU>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>, cpu: Option<Box<CPU>>) -> Self {
         setup_fonts(&cc.egui_ctx);
         set_theme(&cc.egui_ctx);
         // catppuccin_egui::set_theme(&cc.egui_ctx, catppuccin_egui::MOCHA);
@@ -87,8 +73,8 @@ impl Application {
             dir: LinearDir::Vertical,
             ..Default::default()
         };
-        left_inner.shares.set_share(game_window, 0.37);
-        left_inner.shares.set_share(breakpoints, 0.33);
+        left_inner.shares.set_share(game_window, 0.395);
+        left_inner.shares.set_share(breakpoints, 0.305);
         left_inner.shares.set_share(registers, 0.3);
         let left = tiles.insert_new(Tile::Container(Container::Linear(left_inner)));
 
@@ -116,50 +102,59 @@ impl Application {
             tree_manager: manager,
         }
     }
+
+    pub fn open_dialog(&mut self, ctx: &egui::Context) {
+        if let Ok(Some(path)) = native_dialog::FileDialog::new()
+            .set_title("Open ROM")
+            .add_filter("GameBoy ROM", &["gb", "gbc"])
+            .show_open_single_file() {
+            let mut file = File::open(path).unwrap();
+            let mut buffer = Vec::new();
+            file.read_to_end(&mut buffer).unwrap();
+
+            let cartridge = Cartridge::new(buffer);
+            let mut title = format!("GameBoy Debugger | {}", cartridge.get_title());
+            if let Some(licensee) = cartridge.get_licensee() {
+                title += &format!(" | {}", licensee);
+            }
+            ctx.send_viewport_cmd(egui::ViewportCommand::Title(title));
+
+            self.tree_manager.state.cpu = Some(Box::new(CPU::new(cartridge, false)));
+            self.tree_manager.state.disassembly = disassembler::disassemble(&self.tree_manager.state.cpu.as_ref().unwrap());
+        }
+    }
 }
 
 impl eframe::App for Application {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        TopBottomPanel::top("egui_dock::MenuBar").show(ctx, |ui| {
+        if ctx.input(|i| i.key_pressed(egui::Key::O) && i.modifiers.ctrl) {
+            self.open_dialog(ctx);
+        }
+
+        TopBottomPanel::top("menu_bar").show(ctx, |ui| {
+            let mut style = ui.style_mut();
+            style.visuals.widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
+            style.visuals.widgets.hovered.bg_stroke = Stroke::new(0.0, Color32::TRANSPARENT);
+            style.visuals.widgets.hovered.weak_bg_fill = Color32::TRANSPARENT;
+
             ui.horizontal(|ui| {
-                let run_btn = Button::new(if self.tree_manager.state.running { "Stop" } else { "Run" })
-                    .frame(false)
-                    .min_size([50.0, 0.0].into())
-                    .ui(ui);
-                if run_btn.clicked() {
-                    self.tree_manager.state.running = !self.tree_manager.state.running;
-                    self.tree_manager.state.cycles_elapsed_in_frame += self.tree_manager.state.step() as usize;
-                }
-
-                let step_btn = Button::new("Step")
-                    .frame(false)
-                    .min_size([50.0, 0.0].into())
-                    .ui(ui);
-                if step_btn.clicked() {
-                    self.tree_manager.state.cycles_elapsed_in_frame += self.tree_manager.state.step() as usize;
-                }
-
-                let reset_btn = Button::new("Reset")
-                    .frame(false)
-                    .min_size([50.0, 0.0].into())
-                    .ui(ui);
-                if reset_btn.clicked() {
-                    self.tree_manager.state.cpu.reset();
-                }
-
-                let disassemble_btn = Button::new("Disassemble")
-                    .frame(false)
-                    .min_size([50.0, 0.0].into())
-                    .ui(ui);
-                if disassemble_btn.clicked() {
-                    for tile in self.tree.tiles.iter_mut() {
-                        if let Tile::Pane(pane) = tile.1 {
-                            if let Pane::Disassembly(disassembly) = pane {
-                                disassembly.disassemble(&self.tree_manager.state);
-                            }
+                ui.add_space(5.0);
+                ui.menu_button("File", |ui| {
+                    ui.set_width(200.0);
+                    if ui.button("Open ROM        (Ctrl+O)").clicked() {
+                        ui.close_menu();
+                        self.open_dialog(ctx);
+                    }
+                });
+                ui.menu_button("Debug", |ui| {
+                    ui.set_width(200.0);
+                    if ui.button("Disassemble").clicked() {
+                        ui.close_menu();
+                        if let Some(cpu) = &self.tree_manager.state.cpu {
+                            self.tree_manager.state.disassembly = disassembler::disassemble_extra(cpu, self.tree_manager.state.jp_hl_targets.clone());
                         }
                     }
-                }
+                });
             });
         });
         CentralPanel::default().show(ctx, |ui| {

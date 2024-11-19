@@ -35,56 +35,58 @@ impl Window for Registers {
                 ui.label("C:");
             });
 
-            ui.vertical(|ui| {
-                ui.label(format!("{:02X}", state.cpu.registers.a));
-                ui.label(format!("{:02X}", state.cpu.registers.b));
-                ui.label(format!("{:02X}", state.cpu.registers.c));
-                ui.label(format!("{:02X}", state.cpu.registers.d));
-                ui.label(format!("{:02X}", state.cpu.registers.e));
-                ui.label(format!("{:02X}", u8::from(state.cpu.registers.f)));
-                ui.label(format!("{:02X}", state.cpu.registers.h));
-                ui.label(format!("{:02X}", state.cpu.registers.l));
-                ui.label(format!("{:04X}", state.cpu.registers.sp));
-                ui.label(format!("{:04X}", state.cpu.registers.pc));
-                ui.label(format!("{}", bit(state.cpu.registers.f.zero)));
-                ui.label(format!("{}", bit(state.cpu.registers.f.subtract)));
-                ui.label(format!("{}", bit(state.cpu.registers.f.half_carry)));
-                ui.label(format!("{}", bit(state.cpu.registers.f.carry)));
-            });
+            if let Some(cpu) = &state.cpu {
+                ui.vertical(|ui| {
+                    ui.label(format!("{:02X}", cpu.registers.a));
+                    ui.label(format!("{:02X}", cpu.registers.b));
+                    ui.label(format!("{:02X}", cpu.registers.c));
+                    ui.label(format!("{:02X}", cpu.registers.d));
+                    ui.label(format!("{:02X}", cpu.registers.e));
+                    ui.label(format!("{:02X}", u8::from(cpu.registers.f)));
+                    ui.label(format!("{:02X}", cpu.registers.h));
+                    ui.label(format!("{:02X}", cpu.registers.l));
+                    ui.label(format!("{:04X}", cpu.registers.sp));
+                    ui.label(format!("{:04X}", cpu.registers.pc));
+                    ui.label(format!("{}", bit(cpu.registers.f.zero)));
+                    ui.label(format!("{}", bit(cpu.registers.f.subtract)));
+                    ui.label(format!("{}", bit(cpu.registers.f.half_carry)));
+                    ui.label(format!("{}", bit(cpu.registers.f.carry)));
+                });
 
-            ui.vertical(|ui| {
-                ui.label(format!("{}", state.cpu.registers.a));
-                ui.label(format!("{}", state.cpu.registers.b));
-                ui.label(format!("{}", state.cpu.registers.c));
-                ui.label(format!("{}", state.cpu.registers.d));
-                ui.label(format!("{}", state.cpu.registers.e));
-                ui.label(format!("{}", u8::from(state.cpu.registers.f)));
-                ui.label(format!("{}", state.cpu.registers.h));
-                ui.label(format!("{}", state.cpu.registers.l));
-                ui.label(format!("{}", state.cpu.registers.sp));
-                ui.label(format!("{}", state.cpu.registers.pc));
-                ui.label(format!("{}", bit(state.cpu.registers.f.zero)));
-                ui.label(format!("{}", bit(state.cpu.registers.f.subtract)));
-                ui.label(format!("{}", bit(state.cpu.registers.f.half_carry)));
-                ui.label(format!("{}", bit(state.cpu.registers.f.carry)));
-            });
+                ui.vertical(|ui| {
+                    ui.label(format!("{}", cpu.registers.a));
+                    ui.label(format!("{}", cpu.registers.b));
+                    ui.label(format!("{}", cpu.registers.c));
+                    ui.label(format!("{}", cpu.registers.d));
+                    ui.label(format!("{}", cpu.registers.e));
+                    ui.label(format!("{}", u8::from(cpu.registers.f)));
+                    ui.label(format!("{}", cpu.registers.h));
+                    ui.label(format!("{}", cpu.registers.l));
+                    ui.label(format!("{}", cpu.registers.sp));
+                    ui.label(format!("{}", cpu.registers.pc));
+                    ui.label(format!("{}", bit(cpu.registers.f.zero)));
+                    ui.label(format!("{}", bit(cpu.registers.f.subtract)));
+                    ui.label(format!("{}", bit(cpu.registers.f.half_carry)));
+                    ui.label(format!("{}", bit(cpu.registers.f.carry)));
+                });
 
-            ui.vertical(|ui| {
-                ui.label(format!("{:0>8b}", state.cpu.registers.a));
-                ui.label(format!("{:0>8b}", state.cpu.registers.b));
-                ui.label(format!("{:0>8b}", state.cpu.registers.c));
-                ui.label(format!("{:0>8b}", state.cpu.registers.d));
-                ui.label(format!("{:0>8b}", state.cpu.registers.e));
-                ui.label(format!("{:0>8b}", u8::from(state.cpu.registers.f)));
-                ui.label(format!("{:0>8b}", state.cpu.registers.h));
-                ui.label(format!("{:0>8b}", state.cpu.registers.l));
-                ui.label(format!("{:0>16b}", state.cpu.registers.sp));
-                ui.label(format!("{:0>16b}", state.cpu.registers.pc));
-                ui.label(format!("{}", bit(state.cpu.registers.f.zero)));
-                ui.label(format!("{}", bit(state.cpu.registers.f.subtract)));
-                ui.label(format!("{}", bit(state.cpu.registers.f.half_carry)));
-                ui.label(format!("{}", bit(state.cpu.registers.f.carry)));
-            });
+                ui.vertical(|ui| {
+                    ui.label(format!("{:0>8b}", cpu.registers.a));
+                    ui.label(format!("{:0>8b}", cpu.registers.b));
+                    ui.label(format!("{:0>8b}", cpu.registers.c));
+                    ui.label(format!("{:0>8b}", cpu.registers.d));
+                    ui.label(format!("{:0>8b}", cpu.registers.e));
+                    ui.label(format!("{:0>8b}", u8::from(cpu.registers.f)));
+                    ui.label(format!("{:0>8b}", cpu.registers.h));
+                    ui.label(format!("{:0>8b}", cpu.registers.l));
+                    ui.label(format!("{:0>16b}", cpu.registers.sp));
+                    ui.label(format!("{:0>16b}", cpu.registers.pc));
+                    ui.label(format!("{}", bit(cpu.registers.f.zero)));
+                    ui.label(format!("{}", bit(cpu.registers.f.subtract)));
+                    ui.label(format!("{}", bit(cpu.registers.f.half_carry)));
+                    ui.label(format!("{}", bit(cpu.registers.f.carry)));
+                });
+            }
         });
     }
 }

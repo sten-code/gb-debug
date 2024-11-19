@@ -48,14 +48,16 @@ pub struct MMU {
 }
 
 impl MMU {
-    pub fn new(cartridge: Cartridge, gb_mode: GbMode) -> MMU {
-        // let boot_rom = match gb_mode {
-        //     GbMode::Classic | GbMode::ColorAsClassic => DMG_BOOT_ROM.to_vec(),
-        //     GbMode::Color => CGB0_BOOT_ROM.to_vec(),
-        // };
+    pub fn new(cartridge: Cartridge, gb_mode: GbMode, using_boot_rom: bool) -> MMU {
+        let boot_rom = if using_boot_rom {
+            Some(match gb_mode {
+                GbMode::Classic => DMG_BOOT_ROM.to_vec(),
+                GbMode::Color => CGB0_BOOT_ROM.to_vec(),
+            })
+        } else { None };
         let mut mmu = MMU {
             cartridge,
-            boot_rom: None,
+            boot_rom,
             wram: [[0; 0x1000]; 8],
             hram: [0; 0x7F],
 

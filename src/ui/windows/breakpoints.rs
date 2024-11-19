@@ -31,10 +31,16 @@ impl Window for Breakpoints {
         }
 
         state.breakpoints.retain(|x| !deletion.contains(x));
-        if ui.button("Add Breakpoint").clicked() {
-            self.show_message_box = true;
-            self.breakpoint_address_input = format!("{:04x}", state.cpu.registers.pc);
-        }
+        ui.add_space(5.0);
+        ui.horizontal(|ui| {
+            ui.add_space(5.0);
+            if ui.button("Add Breakpoint").clicked() {
+                self.show_message_box = true;
+                if let Some(cpu) = &state.cpu {
+                    self.breakpoint_address_input = format!("{:04x}", cpu.registers.pc);
+                }
+            }
+        });
 
         if self.show_message_box {
             ui.ctx().show_viewport_immediate(

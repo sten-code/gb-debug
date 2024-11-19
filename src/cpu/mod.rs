@@ -170,23 +170,23 @@ pub struct CPU {
 }
 
 impl CPU {
-    pub fn new(cartridge: Cartridge) -> CPU {
+    pub fn new(cartridge: Cartridge, using_boot_rom: bool) -> CPU {
         let gb_mode = match cartridge.read_rom(0x143) & 0x80 {
             0x80 => GbMode::Color,
             _ => GbMode::Classic,
         };
         println!("Gb Mode: {:?}", gb_mode);
         CPU {
-            registers: Registers::new(gb_mode),
-            mmu: MMU::new(cartridge, gb_mode),
+            registers: Registers::new(gb_mode, using_boot_rom),
+            mmu: MMU::new(cartridge, gb_mode, using_boot_rom),
             ime: false,
             is_halted: false,
-            gb_mode
+            gb_mode,
         }
     }
 
     pub fn reset(&mut self) {
-        self.mmu.reset();
+        // self.mmu.reset();
         self.registers.reset();
     }
 
@@ -640,7 +640,7 @@ impl CPU {
                 (self.registers.pc.wrapping_add(1), 4)
             }
             Instruction::STOP => {
-                (self.registers.pc.wrapping_add(1), 4)
+                (self.registers.pc.wrapping_add(2), 4)
             }
         }
     }

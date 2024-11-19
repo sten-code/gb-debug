@@ -198,168 +198,174 @@ impl TileMapViewer {
     }
 
     pub fn show_tiles(&mut self, state: &mut State, ui: &mut Ui) {
-        ui.horizontal(|ui| {
-            ui.add_space(5.0);
-            ui.checkbox(&mut self.show_grid, "Show Grid");
-            match state.cpu.get_gb_mode() {
-                GbMode::Classic => ComboBox::from_label("Palette")
-                    .selected_text(format!("{:?}", self.selected_classic_palette))
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.selected_classic_palette, ClassicPalette::BGP, format!("{:?}", ClassicPalette::BGP));
-                        ui.selectable_value(&mut self.selected_classic_palette, ClassicPalette::OBP0, format!("{:?}", ClassicPalette::OBP0));
-                        ui.selectable_value(&mut self.selected_classic_palette, ClassicPalette::OBP1, format!("{:?}", ClassicPalette::OBP1));
-                    }),
-                GbMode::Color => ComboBox::from_label("Palette")
-                    .selected_text(format!("{:?}", self.selected_color_palette))
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.selected_color_palette, ColorPalette::BCP0, format!("{:?}", ColorPalette::BCP0));
-                        ui.selectable_value(&mut self.selected_color_palette, ColorPalette::BCP1, format!("{:?}", ColorPalette::BCP1));
-                        ui.selectable_value(&mut self.selected_color_palette, ColorPalette::BCP2, format!("{:?}", ColorPalette::BCP2));
-                        ui.selectable_value(&mut self.selected_color_palette, ColorPalette::BCP3, format!("{:?}", ColorPalette::BCP3));
-                        ui.selectable_value(&mut self.selected_color_palette, ColorPalette::BCP4, format!("{:?}", ColorPalette::BCP4));
-                        ui.selectable_value(&mut self.selected_color_palette, ColorPalette::BCP5, format!("{:?}", ColorPalette::BCP5));
-                        ui.selectable_value(&mut self.selected_color_palette, ColorPalette::BCP6, format!("{:?}", ColorPalette::BCP6));
-                        ui.selectable_value(&mut self.selected_color_palette, ColorPalette::BCP7, format!("{:?}", ColorPalette::BCP7));
-                        ui.selectable_value(&mut self.selected_color_palette, ColorPalette::OCP0, format!("{:?}", ColorPalette::OCP0));
-                        ui.selectable_value(&mut self.selected_color_palette, ColorPalette::OCP1, format!("{:?}", ColorPalette::OCP1));
-                        ui.selectable_value(&mut self.selected_color_palette, ColorPalette::OCP2, format!("{:?}", ColorPalette::OCP2));
-                        ui.selectable_value(&mut self.selected_color_palette, ColorPalette::OCP3, format!("{:?}", ColorPalette::OCP3));
-                        ui.selectable_value(&mut self.selected_color_palette, ColorPalette::OCP4, format!("{:?}", ColorPalette::OCP4));
-                        ui.selectable_value(&mut self.selected_color_palette, ColorPalette::OCP5, format!("{:?}", ColorPalette::OCP5));
-                        ui.selectable_value(&mut self.selected_color_palette, ColorPalette::OCP6, format!("{:?}", ColorPalette::OCP6));
-                        ui.selectable_value(&mut self.selected_color_palette, ColorPalette::OCP7, format!("{:?}", ColorPalette::OCP7));
-                    }),
-            };
-        });
+        if let Some(cpu) = &state.cpu {
+            ui.horizontal(|ui| {
+                ui.add_space(5.0);
+                ui.checkbox(&mut self.show_grid, "Show Grid");
+                match cpu.get_gb_mode() {
+                    GbMode::Classic => ComboBox::from_label("Palette")
+                        .selected_text(format!("{:?}", self.selected_classic_palette))
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(&mut self.selected_classic_palette, ClassicPalette::BGP, format!("{:?}", ClassicPalette::BGP));
+                            ui.selectable_value(&mut self.selected_classic_palette, ClassicPalette::OBP0, format!("{:?}", ClassicPalette::OBP0));
+                            ui.selectable_value(&mut self.selected_classic_palette, ClassicPalette::OBP1, format!("{:?}", ClassicPalette::OBP1));
+                        }),
+                    GbMode::Color => ComboBox::from_label("Palette")
+                        .selected_text(format!("{:?}", self.selected_color_palette))
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(&mut self.selected_color_palette, ColorPalette::BCP0, format!("{:?}", ColorPalette::BCP0));
+                            ui.selectable_value(&mut self.selected_color_palette, ColorPalette::BCP1, format!("{:?}", ColorPalette::BCP1));
+                            ui.selectable_value(&mut self.selected_color_palette, ColorPalette::BCP2, format!("{:?}", ColorPalette::BCP2));
+                            ui.selectable_value(&mut self.selected_color_palette, ColorPalette::BCP3, format!("{:?}", ColorPalette::BCP3));
+                            ui.selectable_value(&mut self.selected_color_palette, ColorPalette::BCP4, format!("{:?}", ColorPalette::BCP4));
+                            ui.selectable_value(&mut self.selected_color_palette, ColorPalette::BCP5, format!("{:?}", ColorPalette::BCP5));
+                            ui.selectable_value(&mut self.selected_color_palette, ColorPalette::BCP6, format!("{:?}", ColorPalette::BCP6));
+                            ui.selectable_value(&mut self.selected_color_palette, ColorPalette::BCP7, format!("{:?}", ColorPalette::BCP7));
+                            ui.selectable_value(&mut self.selected_color_palette, ColorPalette::OCP0, format!("{:?}", ColorPalette::OCP0));
+                            ui.selectable_value(&mut self.selected_color_palette, ColorPalette::OCP1, format!("{:?}", ColorPalette::OCP1));
+                            ui.selectable_value(&mut self.selected_color_palette, ColorPalette::OCP2, format!("{:?}", ColorPalette::OCP2));
+                            ui.selectable_value(&mut self.selected_color_palette, ColorPalette::OCP3, format!("{:?}", ColorPalette::OCP3));
+                            ui.selectable_value(&mut self.selected_color_palette, ColorPalette::OCP4, format!("{:?}", ColorPalette::OCP4));
+                            ui.selectable_value(&mut self.selected_color_palette, ColorPalette::OCP5, format!("{:?}", ColorPalette::OCP5));
+                            ui.selectable_value(&mut self.selected_color_palette, ColorPalette::OCP6, format!("{:?}", ColorPalette::OCP6));
+                            ui.selectable_value(&mut self.selected_color_palette, ColorPalette::OCP7, format!("{:?}", ColorPalette::OCP7));
+                        }),
+                };
+            });
 
-        ui.spacing_mut().item_spacing = [0.0, 0.0].into();
-        ui.spacing_mut().interact_size = [0.0, 0.0].into();
-        ui.vertical(|ui| {
-            for (i, row) in self.tiles.chunks(16).enumerate() {
-                ui.horizontal(|ui| {
-                    ui.add_space(5.0);
-                    for tile in row {
-                        let response = if self.show_grid {
-                            Frame::none()
-                                .stroke(Stroke::new(1.0, Color32::BLACK))
-                                .show(ui, |ui| {
-                                    Image::new(&tile.texture)
-                                        .fit_to_exact_size([16.0, 16.0].into())
-                                        .ui(ui);
-                                }).response
-                        } else {
-                            Image::new(&tile.texture)
-                                .fit_to_exact_size([16.0, 16.0].into())
-                                .ui(ui)
-                        };
-                        if response.hovered() {}
+            ui.spacing_mut().item_spacing = [0.0, 0.0].into();
+            ui.spacing_mut().interact_size = [0.0, 0.0].into();
+            ui.vertical(|ui| {
+                for (i, row) in self.tiles.chunks(16).enumerate() {
+                    ui.horizontal(|ui| {
+                        ui.add_space(5.0);
+                        for tile in row {
+                            let response = if self.show_grid {
+                                Frame::none()
+                                    .stroke(Stroke::new(1.0, Color32::BLACK))
+                                    .show(ui, |ui| {
+                                        Image::new(&tile.texture)
+                                            .fit_to_exact_size([16.0, 16.0].into())
+                                            .ui(ui);
+                                    }).response
+                            } else {
+                                Image::new(&tile.texture)
+                                    .fit_to_exact_size([16.0, 16.0].into())
+                                    .ui(ui)
+                            };
+                            if response.hovered() {}
+                        }
+                    });
+                    if i % 8 == 7 {
+                        ui.add_space(5.0);
                     }
-                });
-                if i % 8 == 7 {
-                    ui.add_space(5.0);
                 }
-            }
-        });
+            });
+        }
     }
 
     pub fn show_background(&mut self, state: &mut State, ui: &mut Ui) {
-        ui.horizontal(|ui| {
-            ui.add_space(5.0);
-            ui.vertical(|ui| {
-                ui.checkbox(&mut self.show_grid, "Show Grid");
-                ui.checkbox(&mut self.show_screen_grid, "Show Screen Grid");
-            });
-            ui.add_space(5.0);
-            ui.vertical(|ui| {
-                ComboBox::from_label("Tile Data Address")
-                    .selected_text(self.tile_data_address.to_string())
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.tile_data_address, TileDataAddress::Auto, TileDataAddress::Auto.to_string());
-                        ui.selectable_value(&mut self.tile_data_address, TileDataAddress::X8000, TileDataAddress::X8000.to_string());
-                        ui.selectable_value(&mut self.tile_data_address, TileDataAddress::X8800, TileDataAddress::X8800.to_string());
-                    });
-                ComboBox::from_label("Tile Map Address")
-                    .selected_text(self.tile_map_address.to_string())
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.tile_map_address, TileMapAddress::Auto, TileMapAddress::Auto.to_string());
-                        ui.selectable_value(&mut self.tile_map_address, TileMapAddress::X9800, TileMapAddress::X9800.to_string());
-                        ui.selectable_value(&mut self.tile_map_address, TileMapAddress::X9C00, TileMapAddress::X9C00.to_string());
-                    });
-            });
-        });
-
-        let x = ui.cursor().min.x + 5.0 + (state.cpu.mmu.ppu.scx as f32 * (TILE_IMAGE_SIZE / 8.0));
-        let y = ui.cursor().min.y + (state.cpu.mmu.ppu.scy as f32 * (TILE_IMAGE_SIZE / 8.0));
-        ui.spacing_mut().item_spacing = [0.0, 0.0].into();
-        ui.spacing_mut().interact_size = [0.0, 0.0].into();
-        ui.vertical(|ui| {
-            for y in 0..32 {
-                ui.horizontal(|ui| {
-                    ui.add_space(5.0);
-                    for x in 0..32 {
-                        let offset = y * 32 + x;
-                        let address = match self.tile_map_address {
-                            TileMapAddress::Auto => state.cpu.mmu.ppu.bg_tilemap_addr + offset,
-                            TileMapAddress::X9800 => 0x9800 + offset,
-                            TileMapAddress::X9C00 => 0x9C00 + offset,
-                        };
-                        let tile_id = state.cpu.mmu.read_byte(address);
-                        let tile = match self.tile_data_address {
-                            TileDataAddress::Auto => {
-                                if state.cpu.mmu.ppu.tile_data_addr == 0x8000 {
-                                    &mut self.tiles[128 + tile_id as usize]
-                                } else {
-                                    &mut self.tiles[(256 + tile_id as i8 as i16) as usize]
-                                }
-                            }
-                            TileDataAddress::X8000 => &mut self.tiles[tile_id as usize],
-                            TileDataAddress::X8800 => &mut self.tiles[(128 + tile_id as i8 as i16) as usize],
-                        };
-
-                        if state.cpu.get_gb_mode() == GbMode::Color {
-                            let attributes = state.cpu.mmu.ppu.vram[1][offset as usize];
-                            let palette = attributes & 0b111;
-                            for (i, color_num) in tile.raw_buffer.iter().enumerate() {
-                                TileMapViewer::set_pixel(
-                                    &mut tile.buffer,
-                                    i * 3,
-                                    state.cpu.mmu.ppu.cbg_palette[palette as usize][*color_num as usize][0],
-                                    state.cpu.mmu.ppu.cbg_palette[palette as usize][*color_num as usize][1],
-                                    state.cpu.mmu.ppu.cbg_palette[palette as usize][*color_num as usize][2],
-                                );
-                            }
-                            tile.texture.set(egui::ColorImage::from_rgb([8, 8], &tile.buffer), TextureOptions::NEAREST);
-                        }
-
-                        if self.show_grid {
-                            Frame::none()
-                                .stroke(Stroke::new(1.0, Color32::BLACK))
-                                .show(ui, |ui| {
-                                    Image::new(&tile.texture)
-                                        .fit_to_exact_size([TILE_IMAGE_SIZE, TILE_IMAGE_SIZE].into())
-                                        .ui(ui);
-                                });
-                        } else {
-                            Image::new(&tile.texture)
-                                .fit_to_exact_size([TILE_IMAGE_SIZE, TILE_IMAGE_SIZE].into())
-                                .ui(ui);
-                        }
-                    }
+        if let Some(cpu) = &state.cpu {
+            ui.horizontal(|ui| {
+                ui.add_space(5.0);
+                ui.vertical(|ui| {
+                    ui.checkbox(&mut self.show_grid, "Show Grid");
+                    ui.checkbox(&mut self.show_screen_grid, "Show Screen Grid");
                 });
+                ui.add_space(5.0);
+                ui.vertical(|ui| {
+                    ComboBox::from_label("Tile Data Address")
+                        .selected_text(self.tile_data_address.to_string())
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(&mut self.tile_data_address, TileDataAddress::Auto, TileDataAddress::Auto.to_string());
+                            ui.selectable_value(&mut self.tile_data_address, TileDataAddress::X8000, TileDataAddress::X8000.to_string());
+                            ui.selectable_value(&mut self.tile_data_address, TileDataAddress::X8800, TileDataAddress::X8800.to_string());
+                        });
+                    ComboBox::from_label("Tile Map Address")
+                        .selected_text(self.tile_map_address.to_string())
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(&mut self.tile_map_address, TileMapAddress::Auto, TileMapAddress::Auto.to_string());
+                            ui.selectable_value(&mut self.tile_map_address, TileMapAddress::X9800, TileMapAddress::X9800.to_string());
+                            ui.selectable_value(&mut self.tile_map_address, TileMapAddress::X9C00, TileMapAddress::X9C00.to_string());
+                        });
+                });
+            });
+
+            let x = ui.cursor().min.x + 5.0 + (cpu.mmu.ppu.scx as f32 * (TILE_IMAGE_SIZE / 8.0));
+            let y = ui.cursor().min.y + (cpu.mmu.ppu.scy as f32 * (TILE_IMAGE_SIZE / 8.0));
+            ui.spacing_mut().item_spacing = [0.0, 0.0].into();
+            ui.spacing_mut().interact_size = [0.0, 0.0].into();
+            ui.vertical(|ui| {
+                for y in 0..32 {
+                    ui.horizontal(|ui| {
+                        ui.add_space(5.0);
+                        for x in 0..32 {
+                            let offset = y * 32 + x;
+                            let address = match self.tile_map_address {
+                                TileMapAddress::Auto => cpu.mmu.ppu.bg_tilemap_addr + offset,
+                                TileMapAddress::X9800 => 0x9800 + offset,
+                                TileMapAddress::X9C00 => 0x9C00 + offset,
+                            };
+                            let tile_id = cpu.mmu.read_byte(address);
+                            let tile = match self.tile_data_address {
+                                TileDataAddress::Auto => {
+                                    if cpu.mmu.ppu.tile_data_addr == 0x8000 {
+                                        &mut self.tiles[128 + tile_id as usize]
+                                    } else {
+                                        &mut self.tiles[(256 + tile_id as i8 as i16) as usize]
+                                    }
+                                }
+                                TileDataAddress::X8000 => &mut self.tiles[tile_id as usize],
+                                TileDataAddress::X8800 => &mut self.tiles[(128 + tile_id as i8 as i16) as usize],
+                            };
+
+                            if cpu.get_gb_mode() == GbMode::Color {
+                                let attributes = cpu.mmu.ppu.vram[1][offset as usize];
+                                let palette = attributes & 0b111;
+                                for (i, color_num) in tile.raw_buffer.iter().enumerate() {
+                                    TileMapViewer::set_pixel(
+                                        &mut tile.buffer,
+                                        i * 3,
+                                        cpu.mmu.ppu.cbg_palette[palette as usize][*color_num as usize][0],
+                                        cpu.mmu.ppu.cbg_palette[palette as usize][*color_num as usize][1],
+                                        cpu.mmu.ppu.cbg_palette[palette as usize][*color_num as usize][2],
+                                    );
+                                }
+                                tile.texture.set(egui::ColorImage::from_rgb([8, 8], &tile.buffer), TextureOptions::NEAREST);
+                            }
+
+                            if self.show_grid {
+                                Frame::none()
+                                    .stroke(Stroke::new(1.0, Color32::BLACK))
+                                    .show(ui, |ui| {
+                                        Image::new(&tile.texture)
+                                            .fit_to_exact_size([TILE_IMAGE_SIZE, TILE_IMAGE_SIZE].into())
+                                            .ui(ui);
+                                    });
+                            } else {
+                                Image::new(&tile.texture)
+                                    .fit_to_exact_size([TILE_IMAGE_SIZE, TILE_IMAGE_SIZE].into())
+                                    .ui(ui);
+                            }
+                        }
+                    });
+                }
+            });
+            if self.show_screen_grid {
+                ui.painter().rect_stroke(Rect::from_min_max(
+                    Pos2::new(x, y),
+                    Pos2::new(x + 20.0 * TILE_IMAGE_SIZE, y + 18.0 * TILE_IMAGE_SIZE),
+                ), 0.0, Stroke::new(1.0, Color32::GREEN));
             }
-        });
-        if self.show_screen_grid {
-            ui.painter().rect_stroke(Rect::from_min_max(
-                Pos2::new(x, y),
-                Pos2::new(x + 20.0 * TILE_IMAGE_SIZE, y + 18.0 * TILE_IMAGE_SIZE),
-            ), 0.0, Stroke::new(1.0, Color32::GREEN));
         }
     }
 }
 
 impl Window for TileMapViewer {
     fn show(&mut self, state: &mut State, ui: &mut Ui) {
-        self.update_textures(&state.cpu);
+        if let Some(cpu) = &state.cpu {
+            self.update_textures(cpu);
+        }
 
         ui.add_space(5.0);
         ui.horizontal(|ui| {
