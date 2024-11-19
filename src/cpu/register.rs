@@ -51,6 +51,7 @@ impl From<u8> for FlagsRegister {
 
 #[derive(Copy, Clone)]
 pub struct Registers {
+    gb_mode: GbMode,
     pub a: u8,
     pub b: u8,
     pub c: u8,
@@ -68,6 +69,7 @@ impl Registers {
         match gb_mode {
             GbMode::Classic => {
                 Registers {
+                    gb_mode,
                     a: 0x01,
                     f: FlagsRegister {
                         zero: true,
@@ -87,6 +89,7 @@ impl Registers {
             },
             GbMode::Color => {
                 Registers {
+                    gb_mode,
                     a: 0x11,
                     f: FlagsRegister {
                         zero: true,
@@ -105,6 +108,42 @@ impl Registers {
                 }
             },
         }
+    }
+
+    pub fn reset(&mut self) {
+        match self.gb_mode {
+            GbMode::Color => {
+                self.a = 0x11;
+                self.f.zero = true;
+                self.f.subtract = false;
+                self.f.half_carry = false;
+                self.f.carry = false;
+                self.b = 0x00;
+                self.c = 0x00;
+                self.d = 0xFF;
+                self.e = 0x56;
+                self.h = 0x00;
+                self.l = 0x0D;
+                self.pc = 0x0100;
+                self.sp = 0xFFFE;
+            }
+            GbMode::Classic => {
+                self.a = 0x01;
+                self.f.zero = true;
+                self.f.subtract = false;
+                self.f.half_carry = true;
+                self.f.carry = true;
+                self.b = 0x00;
+                self.c = 0x13;
+                self.d = 0x00;
+                self.e = 0xD8;
+                self.h = 0x01;
+                self.l = 0x4D;
+                self.pc = 0x0100;
+                self.sp = 0xFFFE;
+            }
+        }
+        
     }
 
     pub fn get_af(&self) -> u16 {

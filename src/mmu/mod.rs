@@ -109,6 +109,10 @@ impl MMU {
         mmu
     }
 
+    pub fn reset(&mut self) {
+        self.cartridge.reset();
+    }
+
     pub fn step(&mut self, cycles: u32) {
         self.timer.step(cycles);
         self.interrupt_flags |= self.timer.interrupt;

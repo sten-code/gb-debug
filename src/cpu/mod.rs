@@ -185,6 +185,11 @@ impl CPU {
         }
     }
 
+    pub fn reset(&mut self) {
+        self.mmu.reset();
+        self.registers.reset();
+    }
+
     pub fn get_gb_mode(&self) -> GbMode {
         self.gb_mode
     }
@@ -216,7 +221,7 @@ impl CPU {
         let (next_pc, mut cycles) = if let Some(instruction) = Instruction::from_byte(opcode, prefixed) {
             self.execute(instruction)
         } else {
-            panic!("Invalid opcode: {:02X}", opcode);
+            panic!("Invalid opcode: ${:02X}, PC: ${:04X}", opcode, self.registers.pc);
         };
 
         self.mmu.step(cycles as u32);

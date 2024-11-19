@@ -593,6 +593,9 @@ impl PPU {
                     self.cobj_palette[palette_num as usize][color_num as usize][1] = (self.cobj_palette[palette_num as usize][color_num as usize][1] & 0x07) | ((value & 0x03) << 3);
                     self.cobj_palette[palette_num as usize][color_num as usize][2] = (value >> 2) & 0x1F;
                 }
+                if self.cobj_palette_auto_increment {
+                    self.cobj_palette_index = (self.cobj_palette_index + 1) & 0x3F;
+                }
             }
             _ => unreachable!()
         }

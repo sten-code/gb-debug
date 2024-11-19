@@ -27,7 +27,7 @@ pub fn bit(condition: bool) -> u8 {
 }
 
 fn main() {
-    let mut file = File::open("roms/games/PokemonRed.gb").unwrap();
+    let mut file = File::open("roms/games/PokemonRed.gbc").unwrap();
     let mut buffer = Vec::new();
     file.read_to_end(&mut buffer).unwrap();
 
@@ -139,14 +139,13 @@ impl eframe::App for Application {
                     self.tree_manager.state.cycles_elapsed_in_frame += self.tree_manager.state.step() as usize;
                 }
 
-                // let reset_btn = Button::new("Reset")
-                //     .frame(false)
-                //     .min_size([50.0, 0.0].into())
-                //     .ui(ui);
-                // if reset_btn.clicked() {
-                //     self.context.cpu.reset();
-                //     self.context.disassembly = disassemble(&self.context.cpu);
-                // }
+                let reset_btn = Button::new("Reset")
+                    .frame(false)
+                    .min_size([50.0, 0.0].into())
+                    .ui(ui);
+                if reset_btn.clicked() {
+                    self.tree_manager.state.cpu.reset();
+                }
 
                 let disassemble_btn = Button::new("Disassemble")
                     .frame(false)
