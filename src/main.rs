@@ -8,7 +8,6 @@ use crate::ui::{Pane, TreeManager};
 use eframe::epaint::Color32;
 use egui::debug_text::print;
 use egui::{Button, CentralPanel, Spacing, Stroke, Style, TopBottomPanel, Visuals, Widget};
-use egui_aesthetix::Aesthetix;
 use egui_tiles::{Container, Linear, LinearDir, Tile, Tiles};
 use std::fs::File;
 use std::io::Read;
@@ -60,7 +59,6 @@ impl Application {
     pub fn new(cc: &eframe::CreationContext<'_>, cpu: Option<Box<CPU>>) -> Self {
         setup_fonts(&cc.egui_ctx);
         set_theme(&cc.egui_ctx);
-        // catppuccin_egui::set_theme(&cc.egui_ctx, catppuccin_egui::MOCHA);
         let manager = TreeManager::new(cc, cpu);
         let mut tiles = Tiles::default();
 
@@ -118,7 +116,7 @@ impl Application {
             title += &format!(" | {}", licensee);
         }
         ctx.send_viewport_cmd(egui::ViewportCommand::Title(title));
-        println!("MBC Type: {}", cartridge.get_mbc_type());
+        println!("MBC Type: ${:02X}", cartridge.get_mbc_type());
 
         self.tree_manager.state.cpu = Some(Box::new(CPU::new(cartridge, false)));
         self.tree_manager.state.disassembly =

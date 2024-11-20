@@ -265,32 +265,32 @@ impl TileMapViewer {
     }
 
     pub fn show_background(&mut self, state: &mut State, ui: &mut Ui) {
-        if let Some(cpu) = &state.cpu {
-            ui.horizontal(|ui| {
-                ui.add_space(5.0);
-                ui.vertical(|ui| {
-                    ui.checkbox(&mut self.show_grid, "Show Grid");
-                    ui.checkbox(&mut self.show_screen_grid, "Show Screen Grid");
-                });
-                ui.add_space(5.0);
-                ui.vertical(|ui| {
-                    ComboBox::from_label("Tile Data Address")
-                        .selected_text(self.tile_data_address.to_string())
-                        .show_ui(ui, |ui| {
-                            ui.selectable_value(&mut self.tile_data_address, TileDataAddress::Auto, TileDataAddress::Auto.to_string());
-                            ui.selectable_value(&mut self.tile_data_address, TileDataAddress::X8000, TileDataAddress::X8000.to_string());
-                            ui.selectable_value(&mut self.tile_data_address, TileDataAddress::X8800, TileDataAddress::X8800.to_string());
-                        });
-                    ComboBox::from_label("Tile Map Address")
-                        .selected_text(self.tile_map_address.to_string())
-                        .show_ui(ui, |ui| {
-                            ui.selectable_value(&mut self.tile_map_address, TileMapAddress::Auto, TileMapAddress::Auto.to_string());
-                            ui.selectable_value(&mut self.tile_map_address, TileMapAddress::X9800, TileMapAddress::X9800.to_string());
-                            ui.selectable_value(&mut self.tile_map_address, TileMapAddress::X9C00, TileMapAddress::X9C00.to_string());
-                        });
-                });
+        ui.horizontal(|ui| {
+            ui.add_space(5.0);
+            ui.vertical(|ui| {
+                ui.checkbox(&mut self.show_grid, "Show Grid");
+                ui.checkbox(&mut self.show_screen_grid, "Show Screen Grid");
             });
+            ui.add_space(5.0);
+            ui.vertical(|ui| {
+                ComboBox::from_label("Tile Data Address")
+                    .selected_text(self.tile_data_address.to_string())
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut self.tile_data_address, TileDataAddress::Auto, TileDataAddress::Auto.to_string());
+                        ui.selectable_value(&mut self.tile_data_address, TileDataAddress::X8000, TileDataAddress::X8000.to_string());
+                        ui.selectable_value(&mut self.tile_data_address, TileDataAddress::X8800, TileDataAddress::X8800.to_string());
+                    });
+                ComboBox::from_label("Tile Map Address")
+                    .selected_text(self.tile_map_address.to_string())
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut self.tile_map_address, TileMapAddress::Auto, TileMapAddress::Auto.to_string());
+                        ui.selectable_value(&mut self.tile_map_address, TileMapAddress::X9800, TileMapAddress::X9800.to_string());
+                        ui.selectable_value(&mut self.tile_map_address, TileMapAddress::X9C00, TileMapAddress::X9C00.to_string());
+                    });
+            });
+        });
 
+        if let Some(cpu) = &state.cpu {
             let x = ui.cursor().min.x + 5.0 + (cpu.mmu.ppu.scx as f32 * (TILE_IMAGE_SIZE / 8.0));
             let y = ui.cursor().min.y + (cpu.mmu.ppu.scy as f32 * (TILE_IMAGE_SIZE / 8.0));
             ui.spacing_mut().item_spacing = [0.0, 0.0].into();
