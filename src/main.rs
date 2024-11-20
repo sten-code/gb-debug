@@ -1,30 +1,39 @@
+use crate::cartridge::licensee::Licensee;
 use crate::cartridge::Cartridge;
 use crate::cpu::CPU;
+use crate::ui::windows::{
+    Breakpoints, Disassembly, GameWindow, MemoryDump, Registers, TileMapViewer,
+};
 use crate::ui::{Pane, TreeManager};
-use egui::{Button, CentralPanel, Spacing, Stroke, TopBottomPanel, Widget};
+use eframe::epaint::Color32;
+use egui::debug_text::print;
+use egui::{Button, CentralPanel, Spacing, Stroke, Style, TopBottomPanel, Visuals, Widget};
+use egui_aesthetix::Aesthetix;
+use egui_tiles::{Container, Linear, LinearDir, Tile, Tiles};
 use std::fs::File;
 use std::io::Read;
 use std::ops::BitAndAssign;
-use eframe::epaint::Color32;
-use egui::debug_text::print;
-use egui_tiles::{Container, Linear, LinearDir, Tile, Tiles};
-use crate::cartridge::licensee::Licensee;
-use crate::ui::windows::{Breakpoints, Disassembly, GameWindow, MemoryDump, Registers, TileMapViewer};
+use std::path::PathBuf;
+use std::sync::Arc;
 
-mod cpu;
-mod mmu;
-mod io;
-mod ppu;
-mod gbmode;
-mod mbc;
-mod cartridge;
-mod disassembler;
-mod ui;
 mod assembler;
+mod cartridge;
+mod cpu;
+mod disassembler;
+mod gbmode;
+mod io;
+mod mbc;
+mod mmu;
+mod ppu;
+mod ui;
 
 #[inline(always)]
 pub fn bit(condition: bool) -> u8 {
-    if condition { 1 } else { 0 }
+    if condition {
+        1
+    } else {
+        0
+    }
 }
 
 fn main() {
@@ -35,10 +44,9 @@ fn main() {
     eframe::run_native(
         "GameBoy Debugger",
         options,
-        Box::new(|cc| {
-            Ok(Box::new(Application::new(cc, None)))
-        }),
-    ).unwrap_or_else(|e| {
+        Box::new(|cc| Ok(Box::new(Application::new(cc, None)))),
+    )
+    .unwrap_or_else(|e| {
         eprintln!("Error: {}", e);
     });
 }
@@ -54,11 +62,6 @@ impl Application {
         set_theme(&cc.egui_ctx);
         // catppuccin_egui::set_theme(&cc.egui_ctx, catppuccin_egui::MOCHA);
         let manager = TreeManager::new(cc, cpu);
-        // let mut tree = DockState::new(vec!["Memory Dump".to_owned(), "Tile Map Viewer".to_owned()]);
-        // let [_, _] = tree.main_surface_mut().split_left(NodeIndex::root(), 0.585, vec!["Disassembly".to_owned()]);
-        // let [_, b] = tree.main_surface_mut().split_left(NodeIndex::root(), 0.208, vec!["Game Window".to_owned()]);
-        // let [_, c] = tree.main_surface_mut().split_below(b, 0.37, vec!["Breakpoints".to_owned()]);
-        // let [_, _] = tree.main_surface_mut().split_below(c, 0.39, vec!["Registers".to_owned()]);
         let mut tiles = Tiles::default();
 
         let game_window = tiles.insert_pane(Pane::GameWindow(GameWindow::new()));
@@ -66,7 +69,8 @@ impl Application {
         let registers = tiles.insert_pane(Pane::Registers(Registers::new()));
         let disassembly = tiles.insert_pane(Pane::Disassembly(Disassembly::new(&manager.state)));
         let memory_dump = tiles.insert_pane(Pane::MemoryDump(MemoryDump::new()));
-        let tile_map_viewer = tiles.insert_pane(Pane::TileMapViewer(TileMapViewer::new(&cc.egui_ctx)));
+        let tile_map_viewer =
+            tiles.insert_pane(Pane::TileMapViewer(TileMapViewer::new(&cc.egui_ctx)));
 
         let mut left_inner = Linear {
             children: vec![game_window, breakpoints, registers],
@@ -103,24 +107,31 @@ impl Application {
         }
     }
 
+    pub fn open_file(&mut self, path: PathBuf, ctx: &egui::Context) {
+        let mut file = File::open(path).unwrap();
+        let mut buffer = Vec::new();
+        file.read_to_end(&mut buffer).unwrap();
+
+        let cartridge = Cartridge::new(buffer);
+        let mut title = format!("GameBoy Debugger | {}", cartridge.get_title());
+        if let Some(licensee) = cartridge.get_licensee() {
+            title += &format!(" | {}", licensee);
+        }
+        ctx.send_viewport_cmd(egui::ViewportCommand::Title(title));
+        println!("MBC Type: {}", cartridge.get_mbc_type());
+
+        self.tree_manager.state.cpu = Some(Box::new(CPU::new(cartridge, false)));
+        self.tree_manager.state.disassembly =
+            disassembler::disassemble(self.tree_manager.state.cpu.as_ref().unwrap());
+    }
+
     pub fn open_dialog(&mut self, ctx: &egui::Context) {
         if let Ok(Some(path)) = native_dialog::FileDialog::new()
             .set_title("Open ROM")
             .add_filter("GameBoy ROM", &["gb", "gbc"])
-            .show_open_single_file() {
-            let mut file = File::open(path).unwrap();
-            let mut buffer = Vec::new();
-            file.read_to_end(&mut buffer).unwrap();
-
-            let cartridge = Cartridge::new(buffer);
-            let mut title = format!("GameBoy Debugger | {}", cartridge.get_title());
-            if let Some(licensee) = cartridge.get_licensee() {
-                title += &format!(" | {}", licensee);
-            }
-            ctx.send_viewport_cmd(egui::ViewportCommand::Title(title));
-
-            self.tree_manager.state.cpu = Some(Box::new(CPU::new(cartridge, false)));
-            self.tree_manager.state.disassembly = disassembler::disassemble(&self.tree_manager.state.cpu.as_ref().unwrap());
+            .show_open_single_file()
+        {
+            self.open_file(path, ctx);
         }
     }
 }
@@ -132,7 +143,7 @@ impl eframe::App for Application {
         }
 
         TopBottomPanel::top("menu_bar").show(ctx, |ui| {
-            let mut style = ui.style_mut();
+            let style = ui.style_mut();
             style.visuals.widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
             style.visuals.widgets.hovered.bg_stroke = Stroke::new(0.0, Color32::TRANSPARENT);
             style.visuals.widgets.hovered.weak_bg_fill = Color32::TRANSPARENT;
@@ -151,7 +162,10 @@ impl eframe::App for Application {
                     if ui.button("Disassemble").clicked() {
                         ui.close_menu();
                         if let Some(cpu) = &self.tree_manager.state.cpu {
-                            self.tree_manager.state.disassembly = disassembler::disassemble_extra(cpu, self.tree_manager.state.jp_hl_targets.clone());
+                            self.tree_manager.state.disassembly = disassembler::disassemble_extra(
+                                cpu,
+                                self.tree_manager.state.jp_hl_targets.clone(),
+                            );
                         }
                     }
                 });
@@ -169,17 +183,17 @@ fn setup_fonts(ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
     fonts.font_data.insert(
         "JetBrainsMono".to_owned(),
-        egui::FontData::from_static(include_bytes!(
-            "../assets/JetBrainsMono.ttf"
-        )),
+        egui::FontData::from_static(include_bytes!("../assets/JetBrainsMono.ttf")),
     );
 
-    fonts.families
+    fonts
+        .families
         .entry(egui::FontFamily::Proportional)
         .or_default()
         .insert(0, "JetBrainsMono".to_owned());
 
-    fonts.families
+    fonts
+        .families
         .entry(egui::FontFamily::Monospace)
         .or_default()
         .push("JetBrainsMono".to_owned());

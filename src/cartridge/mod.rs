@@ -17,6 +17,7 @@ pub fn has_battery(cartridge_type: u8) -> bool {
 pub struct Cartridge {
     pub data: Vec<u8>,
     pub mbc: Box<dyn MBC>,
+    mbc_type: u8,
     has_battery: bool,
 }
 
@@ -29,6 +30,7 @@ impl Cartridge {
         Cartridge {
             data,
             mbc,
+            mbc_type,
             has_battery,
         }
     }
@@ -69,6 +71,10 @@ impl Cartridge {
 
     pub fn get_cgb_flag(&self) -> u8 {
         self.data[0x143]
+    }
+
+    pub fn get_mbc_type(&self) -> u8 {
+        self.mbc_type
     }
 
     pub fn get_new_licensee_code(&self) -> String {

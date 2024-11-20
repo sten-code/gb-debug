@@ -102,7 +102,8 @@ impl MBC for MBC3 {
         let index = if address < 0x4000 {
             address as usize
         } else {
-            (self.selected_rom_bank as usize) * 0x4000 + (address as usize - 0x4000)
+            ((self.selected_rom_bank as usize) * 0x4000) | ((address as usize) & 0x3FFF)
+            // (self.selected_rom_bank as usize) * 0x4000 + (address as usize - 0x4000)
         };
         self.rom.get(index).copied().unwrap_or(0xFF)
     }
@@ -112,7 +113,8 @@ impl MBC for MBC3 {
             return 0xFF;
         }
         if !self.rtc_selected && self.selected_ram_bank < self.ram_bank_count {
-            self.ram[(self.selected_ram_bank as usize) * 0x2000 + (address as usize)]
+            self.ram[((self.selected_ram_bank as usize) * 0x2000) | ((address as usize) & 0x1FFF)]
+            // self.ram[(self.selected_ram_bank as usize) * 0x2000 + (address as usize)]
         } else if self.rtc_selected && self.selected_ram_bank < 5 {
             self.rtc_ram_latch[self.selected_ram_bank as usize]
         } else {
@@ -135,7 +137,7 @@ impl MBC for MBC3 {
                 self.selected_ram_bank = value & 0x7;
             }
             0x6000..=0x7FFF => self.latch_rtc_reg(),
-            _ => panic!("Invalid MBC3 address: {:04X} (MBC3)", address),
+            _ => panic!("Invalid address: {:04X} (MBC3)", address),
         }
     }
 
@@ -144,7 +146,8 @@ impl MBC for MBC3 {
             return;
         }
         if !self.rtc_selected && self.selected_ram_bank < self.ram_bank_count {
-            self.ram[(self.selected_ram_bank as usize) * 0x2000 + (address as usize)] = value;
+            self.ram[(self.selected_ram_bank as usize * 0x2000) | ((address as usize) & 0x1FFF)] = value;
+            // self.ram[(self.selected_ram_bank as usize) * 0x2000 + (address as usize)] = value;
         } else if self.rtc_selected && self.selected_ram_bank < 5 {
             self.calc_rtc_zero();
             let mask = match self.selected_ram_bank {
