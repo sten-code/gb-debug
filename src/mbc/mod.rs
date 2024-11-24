@@ -10,6 +10,8 @@ pub trait MBC: Send {
     fn read_ram(&self, address: u16) -> u8;
     fn write_rom(&mut self, address: u16, value: u8);
     fn write_ram(&mut self, address: u16, value: u8);
+    fn get_selected_rom_bank(&self) -> u8;
+    fn get_selected_ram_bank(&self) -> u8;
 }
 
 pub fn new_mbc(data: Vec<u8>) -> Box<dyn MBC> {

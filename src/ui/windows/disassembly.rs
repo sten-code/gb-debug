@@ -1,15 +1,12 @@
 ﻿use crate::assembler;
 use crate::cpu::instruction::Instruction;
-use crate::disassembler::{disassemble, DisassembledLine, LineType};
+use crate::disassembler::{Disassembler, DisassembledLine, LineType};
 use crate::ui::windows::Window;
 use crate::ui::State;
 use eframe::emath::{Align, Pos2};
 use eframe::epaint::Color32;
 use egui::scroll_area::ScrollAreaOutput;
-use egui::{
-    Rect, RichText, ScrollArea, Sense, TextStyle, TextWrapMode, Ui, Vec2, WidgetInfo, WidgetText,
-    WidgetType,
-};
+use egui::{Rect, RichText, ScrollArea, Sense, Separator, TextStyle, TextWrapMode, Ui, Vec2, WidgetInfo, WidgetText, WidgetType};
 use std::cmp::Ordering;
 
 pub struct Disassembly {
@@ -24,95 +21,94 @@ impl Disassembly {
     }
 
     pub fn convert_to_nop(&mut self, state: &mut State, address: u16) {
-        state.disassembly.retain(|x| x.address != address);
-        if let Some(cpu) = &mut state.cpu {
-            let mut instruction_byte = cpu.mmu.read_byte(address);
-            let is_prefixed = if instruction_byte == 0xCB {
-                instruction_byte = cpu.mmu.read_byte(address + 1);
-                true
-            } else {
-                false
-            };
-
-            if let Some(instruction) = Instruction::from_byte(instruction_byte, is_prefixed) {
-                let size = instruction.size();
-                for i in 0..size {
-                    let sub_address = address + i as u16;
-                    cpu.mmu.cartridge.data[sub_address as usize] = 0x00;
-                    cpu.mmu.cartridge.mbc.force_write_rom(sub_address, 0x00);
-                    state.disassembly.push(DisassembledLine {
-                        address: sub_address,
-                        text: format!("{:<7} NOP", "00"),
-                        line_type: LineType::Instruction(instruction),
-                        bytes: vec![0x00],
-                    });
-                }
-            }
-        }
-
-        state.disassembly.sort_by(|a, b| {
-            if matches!(a.line_type, LineType::Label(_)) && a.address == b.address {
-                Ordering::Less
-            } else if matches!(b.line_type, LineType::Label(_)) && a.address == b.address {
-                Ordering::Greater
-            } else {
-                a.address.cmp(&b.address)
-            }
-        });
+        // state.disassembly.retain(|x| x.address != address);
+        // if let Some(cpu) = &mut state.cpu {
+        //     let mut instruction_byte = cpu.mmu.read_byte(address);
+        //     let is_prefixed = if instruction_byte == 0xCB {
+        //         instruction_byte = cpu.mmu.read_byte(address + 1);
+        //         true
+        //     } else {
+        //         false
+        //     };
+        //
+        //     if let Some(instruction) = Instruction::from_byte(instruction_byte, is_prefixed) {
+        //         let size = instruction.size();
+        //         for i in 0..size {
+        //             let sub_address = address + i as u16;
+        //             cpu.mmu.cartridge.data[sub_address as usize] = 0x00;
+        //             cpu.mmu.cartridge.mbc.force_write_rom(sub_address, 0x00);
+        //             state.disassembly.push(DisassembledLine {
+        //                 address: sub_address,
+        //                 text: format!("{:<7} NOP", "00"),
+        //                 line_type: LineType::Instruction(instruction),
+        //                 bytes: vec![0x00],
+        //             });
+        //         }
+        //     }
+        // }
+        //
+        // state.disassembly.sort_by(|a, b| {
+        //     if matches!(a.line_type, LineType::Label(_)) && a.address == b.address {
+        //         Ordering::Less
+        //     } else if matches!(b.line_type, LineType::Label(_)) && a.address == b.address {
+        //         Ordering::Greater
+        //     } else {
+        //         a.address.cmp(&b.address)
+        //     }
+        // });
     }
 
     pub fn assemble_at(&mut self, state: &mut State, mut address: u16) {
         println!("Assembling at ${:04X}", address);
-        let instructions = assembler::assemble("LD A, $00");
-        let begin_address = address;
-        let mut end_address = address;
-        for full_instruction in &instructions {
-            end_address += full_instruction.to_bytes().len() as u16;
-        }
-        state.disassembly.retain(|instr| (instr.address < begin_address || instr.address >= end_address) && matches!(instr.line_type, LineType::Instruction(_)));
-
-        if let Some(cpu) = &mut state.cpu {
-            for full_instruction in instructions {
-                let bytes = full_instruction.to_bytes();
-                let byte_count = bytes.len() as u16;
-
-                let mut bytes_str = String::new();
-                for (i, byte) in bytes.iter().enumerate() {
-                    let address = address + i as u16;
-                    cpu.mmu.cartridge.data[address as usize] = *byte;
-                    cpu.mmu.cartridge.mbc.force_write_rom(address, *byte);
-                    bytes_str.push_str(&format!("{:02X}", byte));
-                }
-
-                state.disassembly.push(DisassembledLine {
-                    address,
-                    text: format!(
-                        "{:<7} {}",
-                        bytes_str,
-                        full_instruction.instruction.to_string(
-                            *full_instruction.operands.first().unwrap_or(&0u8),
-                            *full_instruction.operands.get(1).unwrap_or(&0u8),
-                            address
-                        )
-                    ),
-                    line_type: LineType::Instruction(full_instruction.instruction),
-                    bytes,
-                });
-
-                address += byte_count;
-            }
-        }
-
-
-        state.disassembly.sort_by(|a, b| {
-            if matches!(a.line_type, LineType::Label(_)) && a.address == b.address {
-                Ordering::Less
-            } else if matches!(b.line_type, LineType::Label(_)) && a.address == b.address {
-                Ordering::Greater
-            } else {
-                a.address.cmp(&b.address)
-            }
-        });
+        // let instructions = assembler::assemble("LD A, $00");
+        // let begin_address = address;
+        // let mut end_address = address;
+        // for full_instruction in &instructions {
+        //     end_address += full_instruction.to_bytes().len() as u16;
+        // }
+        // state.disassembly.retain(|instr| (instr.address < begin_address || instr.address >= end_address) && matches!(instr.line_type, LineType::Instruction(_)));
+        //
+        // if let Some(cpu) = &mut state.cpu {
+        //     for full_instruction in instructions {
+        //         let bytes = full_instruction.to_bytes();
+        //         let byte_count = bytes.len() as u16;
+        //
+        //         let mut bytes_str = String::new();
+        //         for (i, byte) in bytes.iter().enumerate() {
+        //             let address = address + i as u16;
+        //             cpu.mmu.cartridge.data[address as usize] = *byte;
+        //             cpu.mmu.cartridge.mbc.force_write_rom(address, *byte);
+        //             bytes_str.push_str(&format!("{:02X}", byte));
+        //         }
+        //
+        //         state.disassembly.push(DisassembledLine {
+        //             address,
+        //             text: format!(
+        //                 "{:<7} {}",
+        //                 bytes_str,
+        //                 full_instruction.instruction.to_string(
+        //                     *full_instruction.operands.first().unwrap_or(&0u8),
+        //                     *full_instruction.operands.get(1).unwrap_or(&0u8),
+        //                     address
+        //                 )
+        //             ),
+        //             line_type: LineType::Instruction(full_instruction.instruction),
+        //             bytes,
+        //         });
+        //
+        //         address += byte_count;
+        //     }
+        // }
+        //
+        // state.disassembly.sort_by(|a, b| {
+        //     if matches!(a.line_type, LineType::Label(_)) && a.address == b.address {
+        //         Ordering::Less
+        //     } else if matches!(b.line_type, LineType::Label(_)) && a.address == b.address {
+        //         Ordering::Greater
+        //     } else {
+        //         a.address.cmp(&b.address)
+        //     }
+        // });
     }
 }
 
@@ -129,7 +125,7 @@ impl Window for Disassembly {
                 ui.horizontal(|ui| {
                     ui.allocate_space(Vec2::new(
                         0.0,
-                        state.disassembly.len() as f32 * LABEL_HEIGHT + 52.0,
+                        state.disassembler.disassembly.len() as f32 * LABEL_HEIGHT + 52.0,
                     ));
                     ui.vertical(|ui| {
                         if let Some(output) = &mut self.scroll_area_output {
@@ -137,7 +133,7 @@ impl Window for Disassembly {
 
                             if let Some(cpu) = &mut state.cpu {
                                 let pc_index = state
-                                    .disassembly
+                                    .disassembler.disassembly[0]
                                     .iter()
                                     .position(|(line)| line.address == cpu.registers.pc)
                                     .unwrap_or(0);
@@ -152,10 +148,12 @@ impl Window for Disassembly {
 
                                 let mut convert_nop_addr: Option<u16> = None;
                                 let mut assemble_addr: Option<u16> = None;
-                                for line in state.disassembly
+                                let offset = (output.state.offset.y / LABEL_HEIGHT) as usize;
+                                for (i, line) in state.disassembler.disassembly[0]
                                     .iter()
-                                    .skip((output.state.offset.y / LABEL_HEIGHT) as usize)
+                                    .skip(offset)
                                     .take((height / LABEL_HEIGHT) as usize)
+                                    .enumerate()
                                 {
                                     let text = if line.address == cpu.registers.pc {
                                         format!("> {:04X} {}", line.address, line.text)
@@ -197,6 +195,22 @@ impl Window for Disassembly {
                                         .min;
                                     let visuals = ui.style().interact_selectable(&response, false);
                                     ui.painter().galley(text_pos, galley, visuals.text_color());
+
+                                    let next = state.disassembler.disassembly[0]
+                                        .iter()
+                                        .skip(offset + i + 1)
+                                        .find(|line| matches!(line.line_type, LineType::Instruction(_)));
+
+                                    if let Some(next) = next {
+                                        if let LineType::Instruction(instruction) = line.line_type {
+                                            if next.address > line.address + instruction.size() as u16 {
+                                                let cursor = ui.cursor();
+                                                ui.painter().line_segment([cursor.min, Pos2::new(cursor.max.x, cursor.min.y)], (1.0, Color32::DARK_GRAY));
+                                            }
+                                        }
+                                    }
+
+
                                     response.context_menu(|ui| {
                                         ui.set_width(200.0);
                                         let has_breakpoint = state.breakpoints.contains(&line.address);

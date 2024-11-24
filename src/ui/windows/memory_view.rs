@@ -4,16 +4,25 @@ use egui::{ScrollArea, Sense, TextStyle, WidgetInfo, WidgetText, WidgetType};
 use crate::ui::State;
 use crate::ui::windows::Window;
 
-pub struct MemoryDump {}
-
-impl MemoryDump {
-    pub fn new() -> Self {
-        Self {}
-    }
+#[derive(PartialEq, Debug)]
+enum SelectedTab {
+    MemoryDump,
+    CallStack,
+    HighRam,
 }
 
-impl Window for MemoryDump {
-    fn show(&mut self, state: &mut State, ui: &mut egui::Ui) {
+pub struct MemoryView {
+    selected_tab: SelectedTab,
+}
+
+impl MemoryView {
+    pub fn new() -> Self {
+        Self {
+            selected_tab: SelectedTab::MemoryDump
+        }
+    }
+
+    fn show_memory_dump(&mut self, state: &mut State, ui: &mut egui::Ui) {
         const BYTES_PER_LINE: usize = 0x10;
         let start: usize = 0x0000;
         let end: usize = 0xFFFF;
@@ -62,6 +71,7 @@ impl Window for MemoryDump {
 
                                 if state.should_scroll_dump && row_addr + i == state.focussed_address as usize && !ui.is_rect_visible(response.rect) {
                                     ui.scroll_to_rect(response.rect, Some(Align::Center));
+                                    state.should_scroll_dump = false;
                                 }
 
                                 if ui.is_rect_visible(response.rect) {
@@ -114,6 +124,44 @@ impl Window for MemoryDump {
                     }
                 }
             });
-        state.should_scroll_dump = false;
+    }
+
+    fn show_call_stack(&mut self, state: &mut State, ui: &mut egui::Ui) {
+        if let Some(cpu) = &state.cpu {
+            for addr in &cpu.call_stack {
+                ui.label(format!("{:04X}", addr));
+            }
+        }
+    }
+
+    fn show_high_ram(&mut self, state: &mut State, ui: &mut egui::Ui) {
+        if let Some(cpu) = &state.cpu {
+            ScrollArea::vertical()
+                .auto_shrink(false)
+                .drag_to_scroll(false)
+                .show(ui, |ui| {
+                    for addr in 0xFF80..=0xFFFE {
+                        ui.label(format!("{:04X}: {:02X}", addr, cpu.mmu.read_byte(addr as u16)));
+                    }
+                });
+        }
+    }
+}
+
+impl Window for MemoryView {
+    fn show(&mut self, state: &mut State, ui: &mut egui::Ui) {
+        ui.add_space(5.0);
+        ui.horizontal(|ui| {
+            ui.add_space(5.0);
+            ui.selectable_value(&mut self.selected_tab, SelectedTab::MemoryDump, "Memory Dump");
+            ui.selectable_value(&mut self.selected_tab, SelectedTab::CallStack, "Call Stack");
+            ui.selectable_value(&mut self.selected_tab, SelectedTab::HighRam, "High RAM");
+        });
+
+        match self.selected_tab {
+            SelectedTab::MemoryDump => self.show_memory_dump(state, ui),
+            SelectedTab::CallStack => self.show_call_stack(state, ui),
+            SelectedTab::HighRam => self.show_high_ram(state, ui),
+        }
     }
 }

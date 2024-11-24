@@ -2,7 +2,7 @@ use crate::cartridge::licensee::Licensee;
 use crate::cartridge::Cartridge;
 use crate::cpu::CPU;
 use crate::ui::windows::{
-    Breakpoints, Disassembly, GameWindow, MemoryDump, Registers, TileMapViewer,
+    Breakpoints, Disassembly, GameWindow, MemoryView, Registers, TileMapViewer,
 };
 use crate::ui::{Pane, TreeManager};
 use eframe::epaint::Color32;
@@ -43,9 +43,14 @@ fn main() {
     eframe::run_native(
         "GameBoy Debugger",
         options,
-        Box::new(|cc| Ok(Box::new(Application::new(cc, None)))),
-    )
-    .unwrap_or_else(|e| {
+        Box::new(|cc| {
+            let mut app = Application::new(cc, None);
+            if let Some(path) = std::env::args().nth(1) {
+                app.open_file(PathBuf::from(path), &cc.egui_ctx);
+            }
+            Ok(Box::new(app))
+        }),
+    ).unwrap_or_else(|e| {
         eprintln!("Error: {}", e);
     });
 }
@@ -66,7 +71,7 @@ impl Application {
         let breakpoints = tiles.insert_pane(Pane::Breakpoints(Breakpoints::new()));
         let registers = tiles.insert_pane(Pane::Registers(Registers::new()));
         let disassembly = tiles.insert_pane(Pane::Disassembly(Disassembly::new(&manager.state)));
-        let memory_dump = tiles.insert_pane(Pane::MemoryDump(MemoryDump::new()));
+        let memory_dump = tiles.insert_pane(Pane::MemoryView(MemoryView::new()));
         let tile_map_viewer =
             tiles.insert_pane(Pane::TileMapViewer(TileMapViewer::new(&cc.egui_ctx)));
 
@@ -118,9 +123,9 @@ impl Application {
         ctx.send_viewport_cmd(egui::ViewportCommand::Title(title));
         println!("MBC Type: ${:02X}", cartridge.get_mbc_type());
 
-        self.tree_manager.state.cpu = Some(Box::new(CPU::new(cartridge, false)));
-        self.tree_manager.state.disassembly =
-            disassembler::disassemble(self.tree_manager.state.cpu.as_ref().unwrap());
+        let cpu = Box::new(CPU::new(cartridge, false));
+        self.tree_manager.state.disassembler.disassemble(&cpu);
+        self.tree_manager.state.cpu = Some(cpu);
     }
 
     pub fn open_dialog(&mut self, ctx: &egui::Context) {
@@ -160,10 +165,8 @@ impl eframe::App for Application {
                     if ui.button("Disassemble").clicked() {
                         ui.close_menu();
                         if let Some(cpu) = &self.tree_manager.state.cpu {
-                            self.tree_manager.state.disassembly = disassembler::disassemble_extra(
-                                cpu,
-                                self.tree_manager.state.jp_hl_targets.clone(),
-                            );
+                            self.tree_manager.state.disassembler.disassemble_extra(cpu, &self.tree_manager.state.extra_targets);
+                            self.tree_manager.state.should_scroll_disasm = true;
                         }
                     }
                 });

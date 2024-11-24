@@ -160,4 +160,7 @@ impl MBC for MBC3 {
             self.calc_rtc_zero();
         }
     }
+
+    fn get_selected_rom_bank(&self) -> u8 { self.selected_rom_bank }
+    fn get_selected_ram_bank(&self) -> u8 { self.selected_ram_bank }
 }

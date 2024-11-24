@@ -107,7 +107,6 @@ impl MMU {
         mmu.write_byte(0xFF49, 0xFF);
         mmu.write_byte(0xFF4A, 0);
         mmu.write_byte(0xFF4B, 0);
-
         mmu
     }
 

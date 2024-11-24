@@ -3,17 +3,19 @@ use crate::ui::State;
 use crate::ui::windows::Window;
 use eframe::epaint::textures::TextureOptions;
 use egui::widgets::Image;
-use egui::{Button, Ui, Widget};
+use egui::{Button, DragValue, Ui, Widget};
 use std::time::Instant;
 
 pub struct GameWindow {
     now: Instant,
+    emulation_speed: f32,
 }
 
 impl GameWindow {
     pub fn new() -> Self {
         Self {
             now: Instant::now(),
+            emulation_speed: 1.0,
         }
     }
 }
@@ -34,27 +36,31 @@ impl Window for GameWindow {
             cpu.mmu.joypad.b = input.key_down(egui::Key::Z);
             cpu.mmu.joypad.start = input.key_down(egui::Key::Enter);
             cpu.mmu.joypad.select = input.key_down(egui::Key::Space);
+        }
 
-            if state.running {
-                let time_delta = self.now.elapsed().subsec_nanos();
-                self.now = Instant::now();
-                let delta = time_delta as f64 / ONE_SECOND_IN_MICROS as f64;
-                let cycles_to_run = delta * ONE_SECOND_IN_CYCLES as f64;
+        if state.running {
+            let time_delta = self.now.elapsed().subsec_nanos() as f32 * self.emulation_speed;
+            self.now = Instant::now();
+            let delta = time_delta as f64 / ONE_SECOND_IN_MICROS as f64;
+            let cycles_to_run = delta * ONE_SECOND_IN_CYCLES as f64;
 
-                let mut cycles_elapsed = 0;
-                while cycles_elapsed <= cycles_to_run as usize {
+            let mut cycles_elapsed = 0;
+            while cycles_elapsed <= cycles_to_run as usize {
+                if let Some(cpu) = &mut state.cpu {
                     if state.breakpoints.contains(&cpu.registers.pc) || !state.running {
                         state.running = false;
                         state.cycles_elapsed_in_frame += cycles_elapsed;
                         break;
                     }
-                    cycles_elapsed += cpu.step() as usize;
                 }
-                state.cycles_elapsed_in_frame += cycles_elapsed;
+                cycles_elapsed += state.step() as usize;
             }
+            state.cycles_elapsed_in_frame += cycles_elapsed;
+        }
 
-            // Render the frame to a texture
-            if state.cycles_elapsed_in_frame >= ONE_FRAME_IN_CYCLES {
+        // Render the frame to a texture
+        if state.cycles_elapsed_in_frame >= ONE_FRAME_IN_CYCLES {
+            if let Some(cpu) = &mut state.cpu {
                 let color_image = egui::ColorImage::from_rgb([SCREEN_WIDTH as usize, SCREEN_HEIGHT as usize], &cpu.mmu.ppu.screen_buffer);
                 state.texture.set(color_image, TextureOptions::NEAREST);
                 state.cycles_elapsed_in_frame = 0;
@@ -87,8 +93,14 @@ impl Window for GameWindow {
             if reset_btn.clicked() {
                 if let Some(cpu) = &mut state.cpu {
                     cpu.reset();
+                    state.extra_targets.clear();
+                    state.disassembler.disassembly.clear();
+                    state.disassembler.disassemble(cpu);
+                    state.should_scroll_disasm = true;
                 }
             }
+
+            ui.add(DragValue::new(&mut self.emulation_speed).speed(0.01).clamp_range(0.0..=30.0));
         });
     }
 }

@@ -21,4 +21,7 @@ impl MBC for MBC0 {
     fn read_ram(&self, _: u16) -> u8 { 0 }
     fn write_rom(&mut self, _: u16, _: u8) {}
     fn write_ram(&mut self, _: u16, _: u8) {}
+
+    fn get_selected_rom_bank(&self) -> u8 { 0 }
+    fn get_selected_ram_bank(&self) -> u8 { 0 }
 }

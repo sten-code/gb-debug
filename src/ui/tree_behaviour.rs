@@ -13,7 +13,7 @@ pub enum Pane {
     GameWindow(GameWindow),
     Breakpoints(Breakpoints),
     Registers(Registers),
-    MemoryDump(MemoryDump),
+    MemoryView(MemoryView),
     TileMapViewer(TileMapViewer),
 }
 
@@ -24,7 +24,7 @@ impl Pane {
             Pane::GameWindow(view) => view.show(state, ui),
             Pane::Breakpoints(view) => view.show(state, ui),
             Pane::Registers(view) => view.show(state, ui),
-            Pane::MemoryDump(view) => view.show(state, ui),
+            Pane::MemoryView(view) => view.show(state, ui),
             Pane::TileMapViewer(view) => view.show(state, ui),
         }
         egui_tiles::UiResponse::None
@@ -64,7 +64,7 @@ impl egui_tiles::Behavior<Pane> for TreeManager {
             Pane::GameWindow(_) => "Game Window".into(),
             Pane::Breakpoints(_) => "Breakpoints".into(),
             Pane::Registers(_) => "Registers".into(),
-            Pane::MemoryDump(_) => "Memory Dump".into(),
+            Pane::MemoryView(_) => "Memory View".into(),
             Pane::TileMapViewer(_) => "Tile Map Viewer".into(),
         }
     }

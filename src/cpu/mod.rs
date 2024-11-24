@@ -164,6 +164,7 @@ fn is_set(byte: u8, position: u8) -> bool {
 pub struct CPU {
     pub registers: Registers,
     pub mmu: MMU,
+    pub call_stack: Vec<u16>,
     ime: bool,
     is_halted: bool,
     gb_mode: GbMode,
@@ -179,6 +180,7 @@ impl CPU {
         CPU {
             registers: Registers::new(gb_mode, using_boot_rom),
             mmu: MMU::new(cartridge, gb_mode, using_boot_rom),
+            call_stack: Vec::new(),
             ime: false,
             is_halted: false,
             gb_mode,
@@ -186,8 +188,11 @@ impl CPU {
     }
 
     pub fn reset(&mut self) {
-        // self.mmu.reset();
+        self.mmu.reset();
         self.registers.reset();
+        self.call_stack.clear();
+        self.ime = false;
+        self.is_halted = false;
     }
 
     pub fn get_gb_mode(&self) -> GbMode {
@@ -268,6 +273,7 @@ impl CPU {
     fn interrupt(&mut self, address: u16) {
         self.ime = false;
         self.push(self.registers.pc);
+        self.call_stack.push(address);
         self.registers.pc = address;
         self.mmu.step(12);
     }
@@ -518,8 +524,10 @@ impl CPU {
             Instruction::CALL(condition) => {
                 let should_jump = self.check_condition(condition);
                 if should_jump {
+                    let address = self.read_next_word();
                     self.push(self.registers.pc.wrapping_add(3));
-                    (self.read_next_word(), 24)
+                    self.call_stack.push(address);
+                    (address, 24)
                 } else {
                     (self.registers.pc.wrapping_add(3), 12)
                 }
@@ -551,6 +559,7 @@ impl CPU {
             Instruction::RET(condition) => {
                 let should_jump = self.check_condition(condition);
                 if should_jump {
+                    self.call_stack.pop();
                     (self.pop(), if condition == JumpTest::Always { 16 } else { 20 })
                 } else {
                     (self.registers.pc.wrapping_add(1), 8)
@@ -558,10 +567,12 @@ impl CPU {
             }
             Instruction::RETI => {
                 self.ime = true;
+                self.call_stack.pop();
                 (self.pop(), 16)
             }
             Instruction::RST(vec) => {
                 self.push(self.registers.pc.wrapping_add(1));
+                self.call_stack.push(vec as u16);
                 (vec as u16, 16)
             }
 
@@ -656,7 +667,7 @@ impl CPU {
         self.mmu.write_word(self.registers.sp, value);
     }
 
-    fn check_condition(&self, condition: JumpTest) -> bool {
+    pub fn check_condition(&self, condition: JumpTest) -> bool {
         match condition {
             JumpTest::NotZero => !self.registers.f.zero,
             JumpTest::Zero => self.registers.f.zero,

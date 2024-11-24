@@ -6,8 +6,8 @@ mod breakpoints;
 pub use breakpoints::*;
 mod registers;
 pub use registers::*;
-mod memory_dump;
-pub use memory_dump::*;
+mod memory_view;
+pub use memory_view::*;
 mod tile_map_viewer;
 pub use tile_map_viewer::*;
 

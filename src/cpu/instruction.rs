@@ -379,7 +379,7 @@ impl Instruction {
             Instruction::SWAP(target) => format!("SWAP {}", target.to_string()),
             Instruction::SRL(target) => format!("SRL  {}", target.to_string()),
             Instruction::LD(load_type) => format!("LD   {}", load_type.to_string(byte1, byte2)),
-            Instruction::CALL(test) => format!("CALL {}addr_{:02X}{:02X}", test.to_string(), byte2, byte1),
+            Instruction::CALL(test) => format!("CALL {}func_{:02X}{:02X}", test.to_string(), byte2, byte1),
             Instruction::JP(test) => format!("JP   {}addr_{:02X}{:02X}", test.to_string(), byte2, byte1),
             Instruction::JPHL => "JP HL".to_owned(),
             Instruction::JR(test) => {
