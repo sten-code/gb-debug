@@ -31,6 +31,13 @@ impl Disassembler {
         }
     }
 
+    pub fn reset(&mut self, cpu: &CPU) {
+        self.disassembly.clear();
+        for _ in 0..cpu.mmu.cartridge.get_rom_size_flag() {
+            self.disassembly.push(Vec::new());
+        }
+    }
+
     fn add_label(&mut self, name: &str, bank: u8, address: u16) {
         let label = format!("{}_{:04X}", name, address);
         if let Some(disassembly) = self.disassembly.get_mut(bank as usize) {
@@ -44,14 +51,14 @@ impl Disassembler {
     }
 
     pub fn disassemble_function(&mut self, bank: u8, address: u16, name: &str, cpu: &CPU) {
-        // println!("Disassembling {}_{:04X}...", name, address);
+        println!("Disassembling {}_{:04X} in bank: {}...", name, address, bank);
         self.add_label(name, bank, address);
-        self.disassemble_branch(bank, address, cpu);
+        self.disassemble_branch(address, cpu);
     }
 
     pub fn explored_address(&self, bank: u8, address: u16) -> bool {
         if let Some(disassembly) = self.disassembly.get(bank as usize) {
-            disassembly.iter().any(|(line)| {
+            disassembly.iter().any(|line| {
                 line.address == address && matches!(line.line_type, LineType::Instruction(_))
             })
         } else {
@@ -59,9 +66,10 @@ impl Disassembler {
         }
     }
 
-    fn disassemble_branch(&mut self, bank: u8, start_addr: u16, cpu: &CPU) {
+    fn disassemble_branch(&mut self, start_addr: u16, cpu: &CPU) {
         // Stack of addresses to visit
         let mut stack = vec![start_addr];
+        let bank = 0;
 
         while let Some(mut instruction_addr) = stack.pop() {
             while instruction_addr < 0xFFFF {
@@ -239,7 +247,7 @@ impl Disassembler {
 
     pub fn disassemble_extra(&mut self, cpu: &CPU, extra_addresses: &Vec<(u16, u16)>) {
         println!("Disassembling Instruction Tree...");
-        self.disassembly.clear();
+        self.reset(cpu);
 
         // explorer interrupt vectors
         self.disassemble_function(0, 0x40, "interrupt", cpu);
