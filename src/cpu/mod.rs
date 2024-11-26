@@ -164,7 +164,7 @@ fn is_set(byte: u8, position: u8) -> bool {
 pub struct CPU {
     pub registers: Registers,
     pub mmu: MMU,
-    pub call_stack: Vec<u16>,
+    pub call_stack: Vec<(u16, u16, u16)>,
     ime: bool,
     is_halted: bool,
     gb_mode: GbMode,
@@ -195,6 +195,16 @@ impl CPU {
         self.is_halted = false;
     }
 
+    pub fn get_current_bank(&self) -> u8 {
+        if self.registers.pc < 0x4000 {
+            0
+        } else if self.registers.pc < 0x8000 {
+            self.mmu.cartridge.mbc.get_selected_rom_bank()
+        } else {
+            self.mmu.cartridge.mbc.get_selected_ram_bank()
+        }
+    }
+
     pub fn get_gb_mode(&self) -> GbMode {
         self.gb_mode
     }
@@ -217,6 +227,7 @@ impl CPU {
     }
 
     pub fn step(&mut self) -> u8 {
+        // println!("Executing instruction at ${:04X}", self.registers.pc);
         let mut opcode = self.mmu.read_byte(self.registers.pc);
         let prefixed = opcode == 0xCB;
         if prefixed {
@@ -273,7 +284,7 @@ impl CPU {
     fn interrupt(&mut self, address: u16) {
         self.ime = false;
         self.push(self.registers.pc);
-        self.call_stack.push(address);
+        self.call_stack.push((self.registers.pc, address, self.registers.pc));
         self.registers.pc = address;
         self.mmu.step(12);
     }
@@ -525,8 +536,9 @@ impl CPU {
                 let should_jump = self.check_condition(condition);
                 if should_jump {
                     let address = self.read_next_word();
-                    self.push(self.registers.pc.wrapping_add(3));
-                    self.call_stack.push(address);
+                    let return_address = self.registers.pc.wrapping_add(3);
+                    self.push(return_address);
+                    self.call_stack.push((self.registers.pc, address, return_address));
                     (address, 24)
                 } else {
                     (self.registers.pc.wrapping_add(3), 12)
@@ -571,8 +583,9 @@ impl CPU {
                 (self.pop(), 16)
             }
             Instruction::RST(vec) => {
-                self.push(self.registers.pc.wrapping_add(1));
-                self.call_stack.push(vec as u16);
+                let return_address = self.registers.pc.wrapping_add(1);
+                self.push(return_address);
+                self.call_stack.push((self.registers.pc, vec as u16, return_address));
                 (vec as u16, 16)
             }
 

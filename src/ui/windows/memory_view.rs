@@ -128,8 +128,8 @@ impl MemoryView {
 
     fn show_call_stack(&mut self, state: &mut State, ui: &mut egui::Ui) {
         if let Some(cpu) = &state.cpu {
-            for addr in &cpu.call_stack {
-                ui.label(format!("{:04X}", addr));
+            for (from, to, return_address) in &cpu.call_stack {
+                ui.label(format!("${:04X} -> ${:04X} -> ${:04X}", from, to, return_address));
             }
         }
     }

@@ -21,20 +21,29 @@ pub struct DisassembledLine {
 
 
 pub struct Disassembler {
-    pub disassembly: Vec<Vec<DisassembledLine>>,
+    pub disassembly: Vec<Vec<DisassembledLine>>
 }
 
 impl Disassembler {
     pub fn new() -> Self {
+        let mut disassembly = Vec::new();
+
+        // Initialize disassembly with 128 banks
+        for _ in 0..0x80 {
+            disassembly.push(Vec::new());
+        }
+
+        // High RAM
+        disassembly.push(Vec::new());
+
         Self {
-            disassembly: Vec::new()
+            disassembly,
         }
     }
 
     pub fn reset(&mut self, cpu: &CPU) {
-        self.disassembly.clear();
-        for _ in 0..cpu.mmu.cartridge.get_rom_size_flag() {
-            self.disassembly.push(Vec::new());
+        for disassembly in &mut self.disassembly {
+            disassembly.clear();
         }
     }
 
@@ -51,9 +60,9 @@ impl Disassembler {
     }
 
     pub fn disassemble_function(&mut self, bank: u8, address: u16, name: &str, cpu: &CPU) {
-        println!("Disassembling {}_{:04X} in bank: {}...", name, address, bank);
+        // println!("Disassembling {}_{:04X} in bank: {}...", name, address, bank);
         self.add_label(name, bank, address);
-        self.disassemble_branch(address, cpu);
+        self.disassemble_branch(bank, address, cpu);
     }
 
     pub fn explored_address(&self, bank: u8, address: u16) -> bool {
@@ -66,13 +75,30 @@ impl Disassembler {
         }
     }
 
-    fn disassemble_branch(&mut self, start_addr: u16, cpu: &CPU) {
+    fn is_in_bank(&self, bank: u8, address: u16) -> bool {
+        // bank 0 takes 0-0x3FFF, anything beyond that isn't in bank 0
+        if bank == 0 && address > 0x3FFF {
+            return false;
+        }
+
+        // bank 1-7F takes 0x4000-0x7FFF, anything before that is bank 0
+        if bank > 0 && (address < 0x4000 || address > 0x7FFF) {
+            return false;
+        }
+
+        true
+    }
+
+    fn disassemble_branch(&mut self, bank: u8, start_addr: u16, cpu: &CPU) {
         // Stack of addresses to visit
         let mut stack = vec![start_addr];
-        let bank = 0;
 
         while let Some(mut instruction_addr) = stack.pop() {
             while instruction_addr < 0xFFFF {
+                if !self.is_in_bank(bank, instruction_addr) {
+                    break;
+                }
+
                 // Check if we've already explored this address to prevent reprocessing
                 if self.explored_address(bank, instruction_addr) {
                     break;
@@ -93,21 +119,22 @@ impl Disassembler {
                 match instruction {
                     Instruction::JP(_) => {
                         let jump_address = cpu.mmu.read_word(operand_addr);
-                        self.add_label("addr", bank, jump_address);
-                        if !self.explored_address(bank, jump_address) && instruction_addr != jump_address
-                        {
-                            stack.push(jump_address);
+                        if self.is_in_bank(bank, jump_address) {
+                            self.add_label("addr", bank, jump_address);
+                            if !self.explored_address(bank, jump_address) && instruction_addr != jump_address
+                            {
+                                stack.push(jump_address);
+                            }
                         }
                     }
                     Instruction::CALL(_) => {
                         let jump_address = cpu.mmu.read_word(operand_addr);
-                        // if jump_address == 0x045C {
-                        //     println!("Found target at 0x045C, from: 0x{:04X}", instruction_addr);
-                        // }
-                        self.add_label("func", bank, jump_address);
-                        if !self.explored_address(bank, jump_address) && instruction_addr != jump_address
-                        {
-                            stack.push(jump_address);
+                        if self.is_in_bank(bank, jump_address) {
+                            self.add_label("func", bank, jump_address);
+                            if !self.explored_address(bank, jump_address) && instruction_addr != jump_address
+                            {
+                                stack.push(jump_address);
+                            }
                         }
                     }
                     Instruction::JR(_) => {
@@ -121,10 +148,12 @@ impl Disassembler {
                                 .wrapping_add(2)
                                 .wrapping_sub((byte as i8 as i16).unsigned_abs())
                         };
-                        self.add_label("addr", bank, jump_address);
-                        if !self.explored_address(bank, jump_address) && instruction_addr != jump_address
-                        {
-                            stack.push(jump_address);
+                        if self.is_in_bank(bank, jump_address) {
+                            self.add_label("addr", bank, jump_address);
+                            if !self.explored_address(bank, jump_address) && instruction_addr != jump_address
+                            {
+                                stack.push(jump_address);
+                            }
                         }
                     }
                     Instruction::RST(vector) => {
@@ -245,7 +274,7 @@ impl Disassembler {
         }
     }*/
 
-    pub fn disassemble_extra(&mut self, cpu: &CPU, extra_addresses: &Vec<(u16, u16)>) {
+    pub fn disassemble_extra(&mut self, cpu: &CPU, extra_addresses: &Vec<(u8, u16)>) {
         println!("Disassembling Instruction Tree...");
         self.reset(cpu);
 
@@ -259,9 +288,8 @@ impl Disassembler {
         // explore main function
         self.disassemble_function(0, 0x0100, "main", cpu);
 
-        for (to, from) in extra_addresses {
-            println!("Exploring indirect branch from 0x{:04X} to 0x{:04X}...", from, to);
-            self.disassemble_function(0, *to, "indirect", cpu);
+        for (bank, address) in extra_addresses {
+            self.disassemble_function(*bank, *address, "addr", cpu);
         }
 
         // Each time a jump occurs, it adds a new label, so there are duplicates that need to be cleaned up

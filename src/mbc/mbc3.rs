@@ -128,12 +128,12 @@ impl MBC for MBC3 {
             // Writing any value with the lower 4 bits being 0xA enables the RAM and RTC registers.
             0x0000..=0x1FFF => self.ram_enabled = value & 0xF == 0xA,
 
-            0x2000..=0x3FFF => { 
+            0x2000..=0x3FFF => {
                 println!("Selected Rom Bank: {} from {}", value & 0x7F, self.selected_rom_bank);
                 self.selected_rom_bank = match value & 0x7F {
-                0 => 1,
-                n => n
-            }
+                    0 => 1,
+                    n => n
+                }
             }
             0x4000..=0x5FFF => {
                 self.rtc_selected = is_set(value, 3);

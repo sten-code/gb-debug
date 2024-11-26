@@ -70,7 +70,7 @@ impl Application {
         let game_window = tiles.insert_pane(Pane::GameWindow(GameWindow::new()));
         let breakpoints = tiles.insert_pane(Pane::Breakpoints(Breakpoints::new()));
         let registers = tiles.insert_pane(Pane::Registers(Registers::new()));
-        let disassembly = tiles.insert_pane(Pane::Disassembly(Disassembly::new(&manager.state)));
+        let disassembly = tiles.insert_pane(Pane::Disassembly(Disassembly::new()));
         let memory_dump = tiles.insert_pane(Pane::MemoryView(MemoryView::new()));
         let tile_map_viewer =
             tiles.insert_pane(Pane::TileMapViewer(TileMapViewer::new(&cc.egui_ctx)));
