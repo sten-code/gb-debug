@@ -59,7 +59,7 @@ impl Disassembler {
         }
     }
 
-    pub fn disassemble_function(&mut self, bank: u8, address: u16, name: &str, cpu: &CPU) {
+    pub fn disassemble_function(&mut self, bank: u8, address: u16, name: &str, cpu: &mut CPU) {
         // println!("Disassembling {}_{:04X} in bank: {}...", name, address, bank);
         self.add_label(name, bank, address);
         self.disassemble_branch(bank, address, cpu);
@@ -89,7 +89,7 @@ impl Disassembler {
         true
     }
 
-    fn disassemble_branch(&mut self, bank: u8, start_addr: u16, cpu: &CPU) {
+    fn disassemble_branch(&mut self, bank: u8, start_addr: u16, cpu: &mut CPU) {
         // Stack of addresses to visit
         let mut stack = vec![start_addr];
 
@@ -274,7 +274,7 @@ impl Disassembler {
         }
     }*/
 
-    pub fn disassemble_extra(&mut self, cpu: &CPU, extra_addresses: &Vec<(u8, u16)>) {
+    pub fn disassemble_extra(&mut self, cpu: &mut CPU, extra_addresses: &Vec<(u8, u16)>) {
         println!("Disassembling Instruction Tree...");
         self.reset(cpu);
 
@@ -305,7 +305,7 @@ impl Disassembler {
         println!("Finished");
     }
 
-    pub fn disassemble(&mut self, cpu: &CPU) {
+    pub fn disassemble(&mut self, cpu: &mut CPU) {
         self.disassemble_extra(cpu, &Vec::new())
     }
 }

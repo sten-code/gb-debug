@@ -1,6 +1,7 @@
-﻿use std::time;
-use crate::mbc;
+﻿use crate::mbc;
 use crate::mbc::MBC;
+use std::{io::Write, time};
+use anyhow::{Result, anyhow};
 
 #[inline(always)]
 fn is_set(byte: u8, position: u8) -> bool {
@@ -18,11 +19,17 @@ pub struct MBC3 {
     rtc_ram: [u8; 5],
     rtc_ram_latch: [u8; 5],
     rtc_zero: Option<u64>,
+    has_battery: bool,
 }
 
 impl MBC3 {
     pub fn new(data: Vec<u8>) -> Self {
         let ram_bank_count = mbc::ram_bank_count(data[0x149]);
+        let has_battery = match data[0x147] {
+            0x0F | 0x10 | 0x13 => true,
+            _ => false,
+        };
+
         MBC3 {
             rom: data,
             ram: vec![0; ram_bank_count as usize * 0x2000],
@@ -34,6 +41,7 @@ impl MBC3 {
             rtc_ram: [0; 5],
             rtc_ram_latch: [0; 5],
             rtc_zero: None,
+            has_battery,
         }
     }
 
@@ -59,8 +67,8 @@ impl MBC3 {
         }
 
         let time_diff = match time::SystemTime::now().duration_since(tzero) {
-            Ok(n) => { n.as_secs() }
-            _ => { 0 }
+            Ok(n) => n.as_secs(),
+            _ => 0,
         };
         self.rtc_ram[0] = (time_diff % 60) as u8;
         self.rtc_ram[1] = ((time_diff / 60) % 60) as u8;
@@ -75,7 +83,9 @@ impl MBC3 {
     }
 
     fn compute_time_diff(&self) -> Option<u64> {
-        if self.rtc_zero.is_none() { return None; }
+        if self.rtc_zero.is_none() {
+            return None;
+        }
         let mut time_diff = match time::SystemTime::now().duration_since(time::UNIX_EPOCH) {
             Ok(t) => t.as_secs(),
             Err(_) => panic!("System clock is set to a time before the unix epoch (1970-01-01)"),
@@ -96,6 +106,43 @@ impl MBC3 {
 impl MBC for MBC3 {
     fn force_write_rom(&mut self, address: u16, value: u8) {
         self.rom[address as usize] = value;
+    }
+
+    fn has_battery(&self) -> bool {
+        self.has_battery
+    }
+
+    fn load_ram(&mut self, data: &[u8]) -> Result<()> {
+        if data.len() != 8 + self.ram.len() {
+            return Err(anyhow!("Loaded ram is too small"));
+        }
+
+        let (int_bytes, rest) = data.split_at(8);
+        let rtc = u64::from_be_bytes(int_bytes.try_into().unwrap());
+        if self.rtc_zero.is_some() {
+            self.rtc_zero = Some(rtc);
+        }
+        self.ram = rest.to_vec();
+        Ok(())
+    }
+
+    fn dump_ram(&self) -> Vec<u8> {
+        let rtc = match self.rtc_zero {
+            Some(t) => t,
+            None => 0,
+        };
+
+        let mut file = vec![];
+
+        let mut ok = true;
+        if ok { let rtc_bytes = rtc.to_be_bytes(); ok = file.write_all(&rtc_bytes).is_ok(); };
+        if ok { let _ = file.write_all(&*self.ram); };
+
+        file
+    }
+
+    fn get_rom(&self) -> &Vec<u8> {
+        &self.rom
     }
 
     fn read_rom(&self, address: u16) -> u8 {
@@ -129,10 +176,14 @@ impl MBC for MBC3 {
             0x0000..=0x1FFF => self.ram_enabled = value & 0xF == 0xA,
 
             0x2000..=0x3FFF => {
-                println!("Selected Rom Bank: {} from {}", value & 0x7F, self.selected_rom_bank);
+                // println!(
+                //     "Selected Rom Bank: {} from {}",
+                //     value & 0x7F,
+                //     self.selected_rom_bank
+                // );
                 self.selected_rom_bank = match value & 0x7F {
                     0 => 1,
-                    n => n
+                    n => n,
                 }
             }
             0x4000..=0x5FFF => {
@@ -149,7 +200,8 @@ impl MBC for MBC3 {
             return;
         }
         if !self.rtc_selected && self.selected_ram_bank < self.ram_bank_count {
-            self.ram[(self.selected_ram_bank as usize * 0x2000) | ((address as usize) & 0x1FFF)] = value;
+            self.ram[(self.selected_ram_bank as usize * 0x2000) | ((address as usize) & 0x1FFF)] =
+                value;
             // self.ram[(self.selected_ram_bank as usize) * 0x2000 + (address as usize)] = value;
         } else if self.rtc_selected && self.selected_ram_bank < 5 {
             self.calc_rtc_zero();
@@ -164,6 +216,10 @@ impl MBC for MBC3 {
         }
     }
 
-    fn get_selected_rom_bank(&self) -> u8 { self.selected_rom_bank }
-    fn get_selected_ram_bank(&self) -> u8 { self.selected_ram_bank }
+    fn get_selected_rom_bank(&self) -> u8 {
+        self.selected_rom_bank
+    }
+    fn get_selected_ram_bank(&self) -> u8 {
+        self.selected_ram_bank
+    }
 }

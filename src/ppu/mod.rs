@@ -68,6 +68,7 @@ pub struct PPU {
     dots: u16, // Number of cycles since the last mode change
 
     pub screen_buffer: [u8; SCREEN_WIDTH as usize * SCREEN_HEIGHT as usize * 3],
+    pub screen_buffer_updated: bool,
     bg_priority: [PriorityType; SCREEN_WIDTH as usize],
     gb_mode: GbMode,
 }
@@ -118,6 +119,7 @@ impl PPU {
             dots: 0,
 
             screen_buffer: [0; SCREEN_WIDTH as usize * SCREEN_HEIGHT as usize * 3],
+            screen_buffer_updated: false,
             bg_priority: [PriorityType::Normal; SCREEN_WIDTH as usize],
             gb_mode,
         }
@@ -201,6 +203,7 @@ impl PPU {
                 if self.mode_1_interrupt {
                     self.interrupt |= bit(true, 1);
                 }
+                self.screen_buffer_updated = true;
             }
             2 => if self.mode_2_interrupt {
                 self.interrupt |= bit(true, 1);

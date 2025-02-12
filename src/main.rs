@@ -1,21 +1,20 @@
-use crate::cartridge::licensee::Licensee;
 use crate::cartridge::Cartridge;
 use crate::cpu::CPU;
 use crate::ui::windows::{
     Breakpoints, Disassembly, GameWindow, MemoryView, Registers, TileMapViewer,
 };
 use crate::ui::{Pane, TreeManager};
+use audio::CpalPlayer;
+use eframe::egui;
+use eframe::egui::{CentralPanel, Stroke, TopBottomPanel};
 use eframe::epaint::Color32;
-use egui::debug_text::print;
-use egui::{Button, CentralPanel, Spacing, Stroke, Style, TopBottomPanel, Visuals, Widget};
 use egui_tiles::{Container, Linear, LinearDir, Tile, Tiles};
-use std::fs::File;
-use std::io::Read;
-use std::ops::BitAndAssign;
+use io::sound::AudioPlayer;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 mod assembler;
+mod audio;
 mod cartridge;
 mod cpu;
 mod disassembler;
@@ -38,6 +37,7 @@ pub fn bit(condition: bool) -> u8 {
 fn main() {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([1600.0, 900.0]),
+        vsync: true,
         ..Default::default()
     };
     eframe::run_native(
@@ -50,7 +50,8 @@ fn main() {
             }
             Ok(Box::new(app))
         }),
-    ).unwrap_or_else(|e| {
+    )
+    .unwrap_or_else(|e| {
         eprintln!("Error: {}", e);
     });
 }
@@ -111,11 +112,7 @@ impl Application {
     }
 
     pub fn open_file(&mut self, path: PathBuf, ctx: &egui::Context) {
-        let mut file = File::open(path).unwrap();
-        let mut buffer = Vec::new();
-        file.read_to_end(&mut buffer).unwrap();
-
-        let cartridge = Cartridge::new(buffer);
+        let cartridge = Cartridge::new(path);
         let mut title = format!("GameBoy Debugger | {}", cartridge.get_title());
         if let Some(licensee) = cartridge.get_licensee() {
             title += &format!(" | {}", licensee);
@@ -123,9 +120,15 @@ impl Application {
         ctx.send_viewport_cmd(egui::ViewportCommand::Title(title));
         println!("MBC Type: ${:02X}", cartridge.get_mbc_type());
 
-        let cpu = Box::new(CPU::new(cartridge, false));
-        self.tree_manager.state.disassembler.disassemble(&cpu);
+        let player = CpalPlayer::get();
+        let (audio_player, stream) = match player {
+            Some((v, s)) => (Box::new(v) as Box<dyn AudioPlayer>, s),
+            None => return
+        };
+        let mut cpu = Box::new(CPU::new(cartridge, false, audio_player));
+        self.tree_manager.state.disassembler.disassemble(&mut cpu);
         self.tree_manager.state.cpu = Some(cpu);
+        self.tree_manager.state.stream = Some(stream);
     }
 
     pub fn open_dialog(&mut self, ctx: &egui::Context) {
@@ -164,8 +167,11 @@ impl eframe::App for Application {
                     ui.set_width(200.0);
                     if ui.button("Disassemble").clicked() {
                         ui.close_menu();
-                        if let Some(cpu) = &self.tree_manager.state.cpu {
-                            self.tree_manager.state.disassembler.disassemble_extra(cpu, &self.tree_manager.state.extra_targets);
+                        if let Some(cpu) = &mut self.tree_manager.state.cpu {
+                            self.tree_manager
+                                .state
+                                .disassembler
+                                .disassemble_extra(cpu, &self.tree_manager.state.extra_targets);
                             self.tree_manager.state.should_scroll_disasm = true;
                         }
                     }
@@ -184,7 +190,7 @@ fn setup_fonts(ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
     fonts.font_data.insert(
         "JetBrainsMono".to_owned(),
-        egui::FontData::from_static(include_bytes!("../assets/JetBrainsMono.ttf")),
+        Arc::new(egui::FontData::from_static(include_bytes!("../assets/JetBrainsMono.ttf"))),
     );
 
     fonts

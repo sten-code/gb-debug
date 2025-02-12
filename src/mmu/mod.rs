@@ -3,6 +3,8 @@ use crate::gbmode::GbMode;
 use crate::io::joypad::Joypad;
 use crate::mmu::timer::Timer;
 use crate::ppu::PPU;
+use crate::io::sound::{AudioPlayer, Sound};
+use crate::audio::CpalPlayer;
 
 mod timer;
 
@@ -44,17 +46,22 @@ pub struct MMU {
     pub joypad: Joypad,
     pub ppu: PPU,
     pub timer: Timer,
+    pub sound: Sound,
     gb_mode: GbMode,
 }
 
 impl MMU {
-    pub fn new(cartridge: Cartridge, gb_mode: GbMode, using_boot_rom: bool) -> MMU {
+    pub fn new(cartridge: Cartridge, gb_mode: GbMode, using_boot_rom: bool, audio_player: Box<dyn AudioPlayer>) -> MMU {
         let boot_rom = if using_boot_rom {
             Some(match gb_mode {
                 GbMode::Classic => DMG_BOOT_ROM.to_vec(),
                 GbMode::Color => CGB0_BOOT_ROM.to_vec(),
             })
         } else { None };
+        let sound = match gb_mode {
+            GbMode::Classic => Sound::new_dmg(audio_player),
+            GbMode::Color => Sound::new_cgb(audio_player),
+        };
         let mut mmu = MMU {
             cartridge,
             boot_rom,
@@ -73,6 +80,7 @@ impl MMU {
             joypad: Joypad::new(),
             ppu: PPU::new(gb_mode),
             timer: Timer::new(),
+            sound,
             gb_mode,
         };
 
@@ -122,13 +130,15 @@ impl MMU {
         self.ppu.step(cycles);
         self.interrupt_flags |= self.ppu.interrupt;
         self.ppu.interrupt = 0;
+
+        self.sound.do_cycle(cycles);
     }
 
     pub fn has_interrupt(&self) -> bool {
         self.interrupt_flags & self.interrupt_enable != 0
     }
 
-    pub fn read_word(&self, addr: u16) -> u16 {
+    pub fn read_word(&mut self, addr: u16) -> u16 {
         let low = self.read_byte(addr) as u16;
         let high = self.read_byte(addr.wrapping_add(1)) as u16;
         (high << 8) | low
@@ -139,7 +149,7 @@ impl MMU {
         self.write_byte(addr.wrapping_add(1), (value >> 8) as u8);
     }
 
-    pub fn read_byte(&self, address: u16) -> u8 {
+    pub fn read_byte(&mut self, address: u16) -> u8 {
         if let Some(boot_rom) = &self.boot_rom {
             if address < boot_rom.len() as u16 {
                 return boot_rom[address as usize];
@@ -168,7 +178,7 @@ impl MMU {
             0xFF04..=0xFF07 => self.timer.read_byte(address),
             0xFF08..=0xFF0E => 0xFF, // Unused
             0xFF0F => self.interrupt_flags,
-            0xFF10..=0xFF3F => 0, // TODO: Sound Registers
+            0xFF10..=0xFF3F => self.sound.rb(address),
             0xFF40..=0xFF4B => self.ppu.read_register(address),
             0xFF4C => 0xFF, // Unused
             0xFF4D => 0, // TODO: Speed Switch
@@ -223,7 +233,7 @@ impl MMU {
             0xFF04..=0xFF07 => self.timer.write_byte(address, value),
             0xFF08..=0xFF0E => {} // Unused
             0xFF0F => self.interrupt_flags = value,
-            0xFF10..=0xFF3F => {} // TODO: Sound Registers
+            0xFF10..=0xFF3F => self.sound.wb(address, value), // TODO: Sound Registers
             0xFF46 => {
                 let base = (value as u16) << 8;
                 for i in 0..0xA0 {

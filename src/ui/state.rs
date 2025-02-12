@@ -1,11 +1,12 @@
-﻿use std::time::Instant;
-use eframe::epaint::TextureHandle;
-use eframe::epaint::textures::TextureOptions;
+﻿use crate::cpu::instruction::Instruction;
 use crate::cpu::CPU;
-use crate::cpu::instruction::Instruction;
 use crate::disassembler;
 use crate::disassembler::{DisassembledLine, Disassembler};
 use crate::ppu::{SCREEN_HEIGHT, SCREEN_WIDTH};
+use eframe::egui;
+use eframe::epaint::textures::TextureOptions;
+use eframe::epaint::TextureHandle;
+use std::time::Instant;
 
 pub struct State {
     pub cpu: Option<Box<CPU>>,
@@ -18,16 +19,27 @@ pub struct State {
     pub should_scroll_disasm: bool,
     pub should_scroll_dump: bool,
     pub focussed_address: u16,
+    pub stream: Option<cpal::Stream>,
 }
 
 impl State {
     pub fn new(cc: &eframe::CreationContext<'_>, cpu: Option<Box<CPU>>) -> Self {
-        let buffer = [0u8, 0u8, 0u8, 255u8].iter().cloned().cycle().take(SCREEN_WIDTH as usize * SCREEN_HEIGHT as usize * 4).collect::<Vec<u8>>();
-        let color_image = egui::ColorImage::from_rgba_unmultiplied([SCREEN_WIDTH as usize, SCREEN_HEIGHT as usize], &buffer);
-        let texture = cc.egui_ctx.load_texture("color_buffer", color_image, TextureOptions::NEAREST);
+        let buffer = [0u8, 0u8, 0u8, 255u8]
+            .iter()
+            .cloned()
+            .cycle()
+            .take(SCREEN_WIDTH as usize * SCREEN_HEIGHT as usize * 4)
+            .collect::<Vec<u8>>();
+        let color_image = egui::ColorImage::from_rgba_unmultiplied(
+            [SCREEN_WIDTH as usize, SCREEN_HEIGHT as usize],
+            &buffer,
+        );
+        let texture =
+            cc.egui_ctx
+                .load_texture("color_buffer", color_image, TextureOptions::NEAREST);
         let mut disassembler = Disassembler::new();
         let pc = if let Some(cpu) = &cpu {
-            disassembler.disassemble(cpu);
+            //disassembler.disassemble(cpu);
             cpu.registers.pc
         } else {
             0
@@ -43,6 +55,7 @@ impl State {
             should_scroll_disasm: true,
             should_scroll_dump: true,
             focussed_address: pc,
+            stream: None
         }
     }
 
@@ -54,8 +67,8 @@ impl State {
 
             let bank = cpu.get_current_bank();
             if !self.disassembler.explored_address(bank, cpu.registers.pc) {
-                println!("Disassembling from bank: {} at ${:04X}", bank, cpu.registers.pc);
-                self.extra_targets.push((bank, cpu.registers.pc));
+                // println!("Disassembling from bank: {} at ${:04X}", bank, cpu.registers.pc);
+                // self.extra_targets.push((bank, cpu.registers.pc));
                 // let label = if let Some(instruction) = Instruction::from_byte(byte, false) {
                 //     match instruction {
                 //         Instruction::CALL(_) => "func",
@@ -64,9 +77,9 @@ impl State {
                 // } else {
                 //     "addr"
                 // };
-                self.disassembler.disassemble_function(bank, cpu.registers.pc, "addr", cpu);
-                self.disassembler.remove_duplicate_labels();
-                self.disassembler.sort_disassembly();
+                // self.disassembler.disassemble_function(bank, cpu.registers.pc, "addr", cpu);
+                // self.disassembler.remove_duplicate_labels();
+                // self.disassembler.sort_disassembly();
             }
 
             // if !self.extra_targets.iter().any(|(to, from)| *to == cpu.registers.pc)

@@ -1,4 +1,4 @@
-﻿use egui::Ui;
+﻿use eframe::egui::Ui;
 use crate::ui::State;
 use crate::ui::windows::Window;
 

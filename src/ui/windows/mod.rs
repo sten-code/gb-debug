@@ -12,6 +12,7 @@ mod tile_map_viewer;
 pub use tile_map_viewer::*;
 
 use crate::ui::State;
+use eframe::egui;
 
 pub trait Window {
     fn show(&mut self, state: &mut State, ui: &mut egui::Ui);

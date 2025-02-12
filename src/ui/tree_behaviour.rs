@@ -104,7 +104,7 @@ impl egui_tiles::Behavior<Pane> for TreeManager {
             let bg_color = self.tab_bg_color(ui.visuals(), tiles, tile_id, state);
             let stroke = self.tab_outline_stroke(ui.visuals(), tiles, tile_id, state);
             ui.painter()
-                .rect(tab_rect.shrink(0.5), 0.0, bg_color, stroke);
+                .rect(tab_rect.shrink(0.5), 0.0, bg_color, stroke, egui::StrokeKind::Middle);
 
             if state.active {
                 // Make the tab name area connect with the tab ui area:

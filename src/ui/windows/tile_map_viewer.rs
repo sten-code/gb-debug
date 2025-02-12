@@ -1,8 +1,9 @@
 ﻿use std::fmt::Display;
+use eframe::egui;
 use eframe::emath::Pos2;
 use eframe::epaint::{Color32, Stroke};
 use eframe::epaint::textures::TextureOptions;
-use egui::{ComboBox, Frame, Image, Rect, TextureHandle, Ui, Widget};
+use eframe::egui::{ComboBox, Frame, Image, Rect, TextureHandle, Ui, Widget};
 use crate::cpu::CPU;
 use crate::gbmode::GbMode;
 use crate::ppu::PPU;
@@ -138,7 +139,7 @@ impl TileMapViewer {
         buffer[index + 2] = ((r as u32 * 3 + g as u32 * 2 + b as u32 * 11) >> 1) as u8;
     }
 
-    pub fn update_textures(&mut self, cpu: &CPU) {
+    pub fn update_textures(&mut self, cpu: &mut CPU) {
         for (i, tile) in self.tiles.iter_mut().enumerate() {
             let address = 0x8000 + (i as u16 * 16);
             for row in 0..8 {
@@ -241,7 +242,7 @@ impl TileMapViewer {
                         ui.add_space(5.0);
                         for tile in row {
                             let response = if self.show_grid {
-                                Frame::none()
+                                Frame::new()
                                     .stroke(Stroke::new(1.0, Color32::BLACK))
                                     .show(ui, |ui| {
                                         Image::new(&tile.texture)
@@ -290,7 +291,7 @@ impl TileMapViewer {
             });
         });
 
-        if let Some(cpu) = &state.cpu {
+        if let Some(cpu) = &mut state.cpu {
             let x = ui.cursor().min.x + 5.0 + (cpu.mmu.ppu.scx as f32 * (TILE_IMAGE_SIZE / 8.0));
             let y = ui.cursor().min.y + (cpu.mmu.ppu.scy as f32 * (TILE_IMAGE_SIZE / 8.0));
             ui.spacing_mut().item_spacing = [0.0, 0.0].into();
@@ -335,7 +336,7 @@ impl TileMapViewer {
                             }
 
                             if self.show_grid {
-                                Frame::none()
+                                Frame::new()
                                     .stroke(Stroke::new(1.0, Color32::BLACK))
                                     .show(ui, |ui| {
                                         Image::new(&tile.texture)
@@ -355,7 +356,7 @@ impl TileMapViewer {
                 ui.painter().rect_stroke(Rect::from_min_max(
                     Pos2::new(x, y),
                     Pos2::new(x + 20.0 * TILE_IMAGE_SIZE, y + 18.0 * TILE_IMAGE_SIZE),
-                ), 0.0, Stroke::new(1.0, Color32::GREEN));
+                ), 0.0, Stroke::new(1.0, Color32::GREEN), egui::StrokeKind::Middle);
             }
         }
     }
@@ -363,7 +364,7 @@ impl TileMapViewer {
 
 impl Window for TileMapViewer {
     fn show(&mut self, state: &mut State, ui: &mut Ui) {
-        if let Some(cpu) = &state.cpu {
+        if let Some(cpu) = &mut state.cpu {
             self.update_textures(cpu);
         }
 

@@ -1,10 +1,13 @@
 ﻿use crate::disassembler::LineType;
 use crate::ui::windows::Window;
 use crate::ui::State;
+use eframe::egui::scroll_area::ScrollAreaOutput;
+use eframe::egui::{
+    Rect, RichText, ScrollArea, Sense, TextStyle, TextWrapMode, Ui, Vec2, WidgetInfo, WidgetText,
+    WidgetType,
+};
 use eframe::emath::{Align, Pos2};
 use eframe::epaint::Color32;
-use egui::scroll_area::ScrollAreaOutput;
-use egui::{Rect, RichText, ScrollArea, Sense, TextStyle, TextWrapMode, Ui, Vec2, WidgetInfo, WidgetText, WidgetType};
 
 pub struct Disassembly {
     scroll_area_output: Option<ScrollAreaOutput<()>>,
@@ -118,11 +121,12 @@ impl Window for Disassembly {
         };
 
         let bank = cpu.get_current_bank();
-        let disassembly = if let Some(disassembly) = state.disassembler.disassembly.get(bank as usize) {
-            disassembly
-        } else {
-            return;
-        };
+        let disassembly =
+            if let Some(disassembly) = state.disassembler.disassembly.get(bank as usize) {
+                disassembly
+            } else {
+                return;
+            };
 
         const LABEL_HEIGHT: f32 = 19.5;
         let height = ui.available_height();
@@ -147,8 +151,10 @@ impl Window for Disassembly {
                                 .unwrap_or(0);
                             let y = pc_index as f32 * LABEL_HEIGHT + 52.0;
                             let rel_y = y - output.state.offset.y;
-                            let rect = Rect::from_min_max(Pos2::new(0.0, rel_y), Pos2::new(0.0, rel_y));
-                            let is_visible = y > output.state.offset.y && y < output.state.offset.y + height;
+                            let rect =
+                                Rect::from_min_max(Pos2::new(0.0, rel_y), Pos2::new(0.0, rel_y));
+                            let is_visible =
+                                y > output.state.offset.y && y < output.state.offset.y + height;
                             if state.should_scroll_disasm && !is_visible {
                                 ui.scroll_to_rect(rect, Some(Align::TOP));
                                 state.should_scroll_disasm = false;
@@ -204,16 +210,18 @@ impl Window for Disassembly {
                                 let visuals = ui.style().interact_selectable(&response, false);
                                 ui.painter().galley(text_pos, galley, visuals.text_color());
 
-                                let next = disassembly
-                                    .iter()
-                                    .skip(offset + i + 1)
-                                    .find(|line| matches!(line.line_type, LineType::Instruction(_)));
+                                let next = disassembly.iter().skip(offset + i + 1).find(|line| {
+                                    matches!(line.line_type, LineType::Instruction(_))
+                                });
 
                                 if let Some(next) = next {
                                     if let LineType::Instruction(instruction) = line.line_type {
                                         if next.address > line.address + instruction.size() as u16 {
                                             let cursor = ui.cursor();
-                                            ui.painter().line_segment([cursor.min, Pos2::new(cursor.max.x, cursor.min.y)], (1.0, Color32::DARK_GRAY));
+                                            ui.painter().line_segment(
+                                                [cursor.min, Pos2::new(cursor.max.x, cursor.min.y)],
+                                                (1.0, Color32::DARK_GRAY),
+                                            );
                                         }
                                     }
                                 }
@@ -270,4 +278,3 @@ impl Window for Disassembly {
         self.scroll_area_output = Some(output);
     }
 }
-

@@ -16,6 +16,19 @@ impl MBC for MBC0 {
     fn force_write_rom(&mut self, address: u16, value: u8) {
         self.rom[address as usize] = value;
     }
+    fn has_battery(&self) -> bool {
+        false
+    }
+    fn load_ram(&mut self, _data: &[u8]) -> anyhow::Result<()> {
+        Ok(())
+    }
+    fn dump_ram(&self) -> Vec<u8> {
+        Vec::new()
+    }
+
+    fn get_rom(&self) -> &Vec<u8> {
+        &self.rom
+    }
 
     fn read_rom(&self, address: u16) -> u8 { self.rom[address as usize] }
     fn read_ram(&self, _: u16) -> u8 { 0 }

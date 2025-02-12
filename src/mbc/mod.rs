@@ -2,9 +2,17 @@
 pub mod mbc0;
 mod mbc1;
 
+use std::{fs, io::{Read, Write}, path};
+
+use anyhow::{Result, anyhow};
+
 // https://gbdev.io/pandocs/MBCs.html
 pub trait MBC: Send {
     fn force_write_rom(&mut self, address: u16, value: u8);
+    fn has_battery(&self) -> bool;
+    fn load_ram(&mut self, data: &[u8]) -> Result<()>;
+    fn dump_ram(&self) -> Vec<u8>;
+    fn get_rom(&self) -> &Vec<u8>;
 
     fn read_rom(&self, address: u16) -> u8;
     fn read_ram(&self, address: u16) -> u8;
@@ -51,5 +59,95 @@ pub fn rom_bank_count(code: u8) -> u8 {
         0x53 => 80,
         0x54 => 96,
         _ => 0,
+    }
+}
+
+pub struct FileBackedMBC {
+    ram_path: std::path::PathBuf,
+    mbc: Box<dyn MBC>,
+}
+
+impl FileBackedMBC {
+    pub fn new(rom_path: path::PathBuf) -> Result<FileBackedMBC> {
+        let mut data = vec![];
+        fs::File::open(&rom_path).and_then(|mut f| f.read_to_end(&mut data))?;
+        let mut mbc = new_mbc(data);
+
+        let ram_path = rom_path.with_extension("gbsave");
+
+        if mbc.has_battery() {
+            match fs::File::open(&ram_path) {
+                Ok(mut file) => {
+                    let mut ram_data: Vec<u8> = vec![];
+                    match file.read_to_end(&mut ram_data) {
+                        Err(..) => return Err(anyhow!("Error while reading existing save file")),
+                        Ok(..) => { mbc.load_ram(&ram_data)?; },
+                    }
+                },
+                Err(ref e) if e.kind() == std::io::ErrorKind::NotFound => {},
+                Err(_) => return Err(anyhow!("Error loading existing save file")),
+            }
+        }
+
+        Ok(FileBackedMBC { ram_path, mbc })
+    }
+}
+
+impl MBC for FileBackedMBC {
+    fn force_write_rom(&mut self, address: u16, value: u8) {
+        self.mbc.force_write_rom(address, value);
+    }
+
+    fn has_battery(&self) -> bool {
+        self.mbc.has_battery()
+    }
+
+    fn load_ram(&mut self, data: &[u8]) -> Result<()> {
+        self.mbc.load_ram(data)
+    }
+
+    fn dump_ram(&self) -> Vec<u8> {
+        self.mbc.dump_ram()
+    }
+
+    fn get_rom(&self) -> &Vec<u8> {
+        self.mbc.get_rom()
+    }
+
+    fn read_rom(&self, address: u16) -> u8 {
+        self.mbc.read_rom(address)
+    }
+
+    fn read_ram(&self, address: u16) -> u8 {
+        self.mbc.read_ram(address)
+    }
+
+    fn write_rom(&mut self, address: u16, value: u8) {
+        self.mbc.write_rom(address, value);
+    }
+
+    fn write_ram(&mut self, address: u16, value: u8) {
+        self.mbc.write_ram(address, value);
+    }
+
+    fn get_selected_rom_bank(&self) -> u8 {
+        self.mbc.get_selected_rom_bank()
+    }
+
+    fn get_selected_ram_bank(&self) -> u8 {
+        self.mbc.get_selected_ram_bank()
+    }
+}
+
+impl Drop for FileBackedMBC {
+    fn drop(&mut self) {
+        if self.mbc.has_battery() {
+            // TODO: error handling
+            let mut file = match fs::File::create(&self.ram_path) {
+                Ok(f) => f,
+                Err(..) => return,
+            };
+            let _ = file.write_all(&self.mbc.dump_ram());
+        }
     }
 }

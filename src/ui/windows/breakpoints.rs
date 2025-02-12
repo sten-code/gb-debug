@@ -1,5 +1,6 @@
 ﻿use eframe::emath::Align;
-use egui::{Button, CentralPanel, Layout, Widget};
+use eframe::egui;
+use eframe::egui::{Button, CentralPanel, Layout, Widget};
 use crate::ui::State;
 use crate::ui::windows::Window;
 

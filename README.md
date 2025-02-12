@@ -10,8 +10,8 @@ This is a Game Boy Debugger and Emulator.
 - [x] Memory Dump Viewer
 - [x] CPU Breakpoints
 - [x] DMG Emulator
-- [ ] CGB Emulator (It's mostly broken still)
-- [ ] Sound Emulation
+- [x] CGB Emulator
+- [x] Sound Emulation
 - [ ] Serial I/O
 - [ ] Save States
 - [ ] Game Genie Codes

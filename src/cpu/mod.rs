@@ -2,6 +2,8 @@
 use crate::cpu::instruction::{Instruction, Source8Bit, Reg16Bit, IncDecTarget, Target8Bit, LoadType, DerefTarget, JumpTest, StackTarget};
 use crate::cpu::register::Registers;
 use crate::gbmode::GbMode;
+use crate::io::sound::AudioPlayer;
+use crate::mbc::MBC;
 use crate::mmu::MMU;
 
 mod register;
@@ -171,7 +173,7 @@ pub struct CPU {
 }
 
 impl CPU {
-    pub fn new(cartridge: Cartridge, using_boot_rom: bool) -> CPU {
+    pub fn new(cartridge: Cartridge, using_boot_rom: bool, audio_player: Box<dyn AudioPlayer>) -> CPU {
         let gb_mode = match cartridge.read_rom(0x143) & 0x80 {
             0x80 => GbMode::Color,
             _ => GbMode::Classic,
@@ -179,7 +181,7 @@ impl CPU {
         println!("Gb Mode: {:?}", gb_mode);
         CPU {
             registers: Registers::new(gb_mode, using_boot_rom),
-            mmu: MMU::new(cartridge, gb_mode, using_boot_rom),
+            mmu: MMU::new(cartridge, gb_mode, using_boot_rom, audio_player),
             call_stack: Vec::new(),
             ime: false,
             is_halted: false,
@@ -259,7 +261,7 @@ impl CPU {
             }
 
             // LCD STAT
-            if is_set(self.mmu.interrupt_enable, 1) && is_set(self.mmu.interrupt_flags, 1) {
+            else if is_set(self.mmu.interrupt_enable, 1) && is_set(self.mmu.interrupt_flags, 1) {
                 interrupted = true;
                 // Turn off the bit at position 1
                 self.mmu.interrupt_flags &= !2;
@@ -267,7 +269,7 @@ impl CPU {
             }
 
             // Timer
-            if is_set(self.mmu.interrupt_enable, 2) && is_set(self.mmu.interrupt_flags, 2) {
+            else if is_set(self.mmu.interrupt_enable, 2) && is_set(self.mmu.interrupt_flags, 2) {
                 interrupted = true;
                 // Turn off the bit at position 2
                 self.mmu.interrupt_flags &= !4;

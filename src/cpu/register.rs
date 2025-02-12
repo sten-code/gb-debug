@@ -194,7 +194,7 @@ mod tests {
 
     #[test]
     fn set_bc() {
-        let mut registers = Registers::from_mode(GbMode::Classic);
+        let mut registers = Registers::new(GbMode::Classic, false);
         registers.set_bc(0b1010_1111_1100_1100);
         assert_eq!(registers.b, 0b1010_1111u8, "b");
         assert_eq!(registers.c, 0b1100_1100u8, "c");
@@ -202,7 +202,7 @@ mod tests {
 
     #[test]
     fn set_f_from_u8() {
-        let mut registers = Registers::from_mode(GbMode::Classic);
+        let mut registers = Registers::new(GbMode::Classic, false);
         let value = 0b1100_0000;
         registers.f = value.into();
         let result: u8 = registers.f.into();
@@ -215,7 +215,7 @@ mod tests {
 
     #[test]
     fn set_f() {
-        let mut registers = Registers::from_mode(GbMode::Classic);
+        let mut registers = Registers::new(GbMode::Classic, false);
         let value: FlagsRegister = 0b0011_0000u8.into();
         registers.f = value;
         assert_eq!(registers.f.zero, false, "zero");

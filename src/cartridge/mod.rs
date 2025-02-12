@@ -1,9 +1,8 @@
 ﻿pub mod licensee;
 
-use crate::mbc;
+use crate::mbc::FileBackedMBC;
 use crate::mbc::MBC;
-use std::fmt::Display;
-use egui::TextBuffer;
+use std::path::PathBuf;
 use crate::cartridge::licensee::Licensee;
 
 pub fn has_battery(cartridge_type: u8) -> bool {
@@ -14,28 +13,23 @@ pub fn has_battery(cartridge_type: u8) -> bool {
 }
 
 pub struct Cartridge {
-    pub data: Vec<u8>,
-    pub mbc: Box<dyn MBC>,
-    mbc_type: u8,
-    has_battery: bool,
+    pub rom_path: PathBuf,
+    pub mbc: FileBackedMBC,
 }
 
 impl Cartridge {
-    pub fn new(data: Vec<u8>) -> Cartridge {
-        let mbc_type = data[0x147];
-        let has_battery = has_battery(mbc_type);
-        let mbc: Box<dyn MBC> = mbc::new_mbc(data.clone());
+    pub fn new(rom_path: PathBuf) -> Cartridge {
+        let mbc = FileBackedMBC::new(rom_path.clone()).expect("Couldn't read rom");
+        //let mbc: Box<dyn MBC> = mbc::new_mbc(data.clone());
 
         Cartridge {
-            data,
+            rom_path,
             mbc,
-            mbc_type,
-            has_battery,
         }
     }
 
     pub fn reset(&mut self) {
-        self.mbc = mbc::new_mbc(self.data.clone());
+        self.mbc = FileBackedMBC::new(self.rom_path.clone()).expect("Couldn't read rom to reset");
     }
 
     pub fn read_rom(&self, address: u16) -> u8 {
@@ -55,34 +49,34 @@ impl Cartridge {
     }
 
     pub fn get_title(&self) -> String {
-        let title = &self.data[0x134..0x143];
+        let title = &self.mbc.get_rom()[0x134..0x143];
         title.iter().take_while(|&&c| c != 0).map(|&c| c as char).collect()
     }
 
     pub fn get_manufacturer_code(&self) -> String {
-        let code = &self.data[0x13F..0x142];
+        let code = &self.mbc.get_rom()[0x13F..0x142];
         code.iter().map(|&c| c as char).collect()
     }
 
     pub fn has_battery(&self) -> bool {
-        self.has_battery
+        self.mbc.has_battery()
     }
 
     pub fn get_cgb_flag(&self) -> u8 {
-        self.data[0x143]
+        self.mbc.get_rom()[0x143]
     }
 
     pub fn get_mbc_type(&self) -> u8 {
-        self.mbc_type
+        self.mbc.get_rom()[0x147]
     }
 
     pub fn get_new_licensee_code(&self) -> String {
-        let code = &self.data[0x144..0x146];
+        let code = &self.mbc.get_rom()[0x144..0x146];
         code.iter().map(|&c| c as char).collect()
     }
 
     pub fn get_old_licensee_code(&self) -> u8 {
-        self.data[0x14B]
+        self.mbc.get_rom()[0x14B]
     }
 
     pub fn get_licensee(&self) -> Option<Licensee> {
@@ -96,53 +90,53 @@ impl Cartridge {
     }
 
     pub fn get_sgb_flag(&self) -> u8 {
-        self.data[0x146]
+        self.mbc.get_rom()[0x146]
     }
 
     pub fn get_cartridge_type(&self) -> u8 {
-        self.data[0x147]
+        self.mbc.get_rom()[0x147]
     }
 
     pub fn get_rom_size_flag(&self) -> u8 {
-        self.data[0x148]
+        self.mbc.get_rom()[0x148]
     }
 
     pub fn get_ram_size_flag(&self) -> u8 {
-        self.data[0x149]
+        self.mbc.get_rom()[0x149]
     }
 
     pub fn get_destination_code(&self) -> u8 {
-        self.data[0x14A]
+        self.mbc.get_rom()[0x14A]
     }
 
     pub fn get_rom_version_number(&self) -> u8 {
-        self.data[0x14C]
+        self.mbc.get_rom()[0x14C]
     }
 
     pub fn compute_header_checksum(&self) -> u8 {
         let mut sum: u8 = 0;
         for i in 0x134..0x14C {
-            sum = sum.wrapping_sub(self.data[i]);
+            sum = sum.wrapping_sub(self.mbc.get_rom()[i]);
         }
         sum.wrapping_sub(0x19)
     }
 
     pub fn get_header_checksum(&self) -> u8 {
-        self.data[0x14D]
+        self.mbc.get_rom()[0x14D]
     }
 
     pub fn compute_global_checksum(&self) -> u16 {
         let mut sum: u16 = 0;
         for i in 0..0x14E {
-            sum = sum.wrapping_add(self.data[i] as u16);
+            sum = sum.wrapping_add(self.mbc.get_rom()[i] as u16);
         }
-        for i in 0x150..self.data.len() {
-            sum = sum.wrapping_add(self.data[i] as u16);
+        for i in 0x150..self.mbc.get_rom().len() {
+            sum = sum.wrapping_add(self.mbc.get_rom()[i] as u16);
         }
         sum
     }
 
     pub fn get_global_checksum(&self) -> u16 {
-        (self.data[0x14E] as u16) << 8 | self.data[0x14F] as u16
+        (self.mbc.get_rom()[0x14E] as u16) << 8 | self.mbc.get_rom()[0x14F] as u16
     }
 }

@@ -1,14 +1,18 @@
 ﻿use crate::ppu::{SCREEN_HEIGHT, SCREEN_WIDTH};
-use crate::ui::State;
 use crate::ui::windows::Window;
+use crate::ui::State;
+use eframe::egui::widgets::Image;
+use eframe::egui::{self, Id, Modal};
+use eframe::egui::{Button, DragValue, Ui, Widget};
 use eframe::epaint::textures::TextureOptions;
-use egui::widgets::Image;
-use egui::{Button, DragValue, Ui, Widget};
 use std::time::Instant;
 
 pub struct GameWindow {
     now: Instant,
-    emulation_speed: f32,
+    pub emulation_speed: f32,
+    pub fullscreen: bool,
+    pub fullscreen_scale: f32,
+    pub normal_scale: f32,
 }
 
 impl GameWindow {
@@ -16,6 +20,9 @@ impl GameWindow {
         Self {
             now: Instant::now(),
             emulation_speed: 1.0,
+            fullscreen: false,
+            fullscreen_scale: 7.0,
+            normal_scale: 2.0,
         }
     }
 }
@@ -23,6 +30,60 @@ impl GameWindow {
 const ONE_SECOND_IN_MICROS: usize = 1000000000;
 const ONE_SECOND_IN_CYCLES: usize = 4190000;
 const ONE_FRAME_IN_CYCLES: usize = 70224;
+
+impl GameWindow {
+    fn show_control_buttons(&mut self, state: &mut State, ui: &mut Ui) {
+        ui.horizontal(|ui| {
+            ui.add_space(5.0);
+            let run_btn = Button::new(if state.running { "Stop" } else { "Run" })
+                .min_size([50.0, 0.0].into())
+                .ui(ui);
+            if run_btn.clicked() {
+                state.running = !state.running;
+                state.cycles_elapsed_in_frame += state.step() as usize;
+            }
+
+            let step_btn = Button::new("Step").min_size([50.0, 0.0].into()).ui(ui);
+            if step_btn.clicked() {
+                state.cycles_elapsed_in_frame += state.step() as usize;
+            }
+
+            let reset_btn = Button::new("Reset").min_size([50.0, 0.0].into()).ui(ui);
+            if reset_btn.clicked() {
+                if let Some(cpu) = &mut state.cpu {
+                    cpu.reset();
+                    state.extra_targets.clear();
+                    state.disassembler.disassembly.clear();
+                    state.disassembler.disassemble(cpu);
+                    state.should_scroll_disasm = true;
+                }
+            }
+
+            ui.add(
+                DragValue::new(&mut self.emulation_speed)
+                    .speed(0.01)
+                    .range(0.0..=30.0),
+            );
+
+            let fullscreen_btn = Button::new("Fullscreen")
+                .min_size([50.0, 0.0].into())
+                .ui(ui);
+            if fullscreen_btn.clicked() {
+                self.fullscreen = !self.fullscreen;
+            }
+
+            ui.add(
+                DragValue::new(if self.fullscreen {
+                    &mut self.fullscreen_scale
+                } else {
+                    &mut self.normal_scale
+                })
+                .speed(0.01)
+                .range(1.0..=10.0),
+            );
+        });
+    }
+}
 
 impl Window for GameWindow {
     fn show(&mut self, state: &mut State, ui: &mut Ui) {
@@ -61,46 +122,40 @@ impl Window for GameWindow {
         // Render the frame to a texture
         if state.cycles_elapsed_in_frame >= ONE_FRAME_IN_CYCLES {
             if let Some(cpu) = &mut state.cpu {
-                let color_image = egui::ColorImage::from_rgb([SCREEN_WIDTH as usize, SCREEN_HEIGHT as usize], &cpu.mmu.ppu.screen_buffer);
-                state.texture.set(color_image, TextureOptions::NEAREST);
-                state.cycles_elapsed_in_frame = 0;
+                if cpu.mmu.ppu.screen_buffer_updated {
+                    let color_image = egui::ColorImage::from_rgb(
+                        [SCREEN_WIDTH as usize, SCREEN_HEIGHT as usize],
+                        &cpu.mmu.ppu.screen_buffer,
+                    );
+                    state.texture.set(color_image, TextureOptions::NEAREST);
+                    state.cycles_elapsed_in_frame = 0;
+                    cpu.mmu.ppu.screen_buffer_updated = false;
+                }
             }
         }
 
-        Image::new(&state.texture)
-            .fit_to_exact_size([SCREEN_WIDTH as f32 * 2.0, SCREEN_HEIGHT as f32 * 2.0].into())
-            .ui(ui);
-        ui.horizontal(|ui| {
-            ui.add_space(5.0);
-            let run_btn = Button::new(if state.running { "Stop" } else { "Run" })
-                .min_size([50.0, 0.0].into())
+        if !self.fullscreen {
+            Image::new(&state.texture)
+                .fit_to_exact_size([SCREEN_WIDTH as f32 * 2.0, SCREEN_HEIGHT as f32 * 2.0].into())
                 .ui(ui);
-            if run_btn.clicked() {
-                state.running = !state.running;
-                state.cycles_elapsed_in_frame += state.step() as usize;
+            self.show_control_buttons(state, ui);
+        } else {
+            let modal = Modal::new(Id::new("Game")).show(ui.ctx(), |ui| {
+                ui.set_width(SCREEN_WIDTH as f32 * self.fullscreen_scale);
+                Image::new(&state.texture)
+                    .fit_to_exact_size(
+                        [
+                            SCREEN_WIDTH as f32 * self.fullscreen_scale,
+                            SCREEN_HEIGHT as f32 * self.fullscreen_scale,
+                        ]
+                        .into(),
+                    )
+                    .ui(ui);
+                self.show_control_buttons(state, ui);
+            });
+            if modal.should_close() {
+                self.fullscreen = false;
             }
-
-            let step_btn = Button::new("Step")
-                .min_size([50.0, 0.0].into())
-                .ui(ui);
-            if step_btn.clicked() {
-                state.cycles_elapsed_in_frame += state.step() as usize;
-            }
-
-            let reset_btn = Button::new("Reset")
-                .min_size([50.0, 0.0].into())
-                .ui(ui);
-            if reset_btn.clicked() {
-                if let Some(cpu) = &mut state.cpu {
-                    cpu.reset();
-                    state.extra_targets.clear();
-                    state.disassembler.disassembly.clear();
-                    state.disassembler.disassemble(cpu);
-                    state.should_scroll_disasm = true;
-                }
-            }
-
-            ui.add(DragValue::new(&mut self.emulation_speed).speed(0.01).clamp_range(0.0..=30.0));
-        });
+        }
     }
 }
