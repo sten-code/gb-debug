@@ -1,11 +1,11 @@
-﻿use eframe::egui;
+use crate::cpu::CPU;
+use crate::ui::windows::*;
+use crate::ui::State;
+use eframe::egui;
 use eframe::emath::{vec2, Vec2};
 use eframe::epaint::Stroke;
 use egui::{Id, Response, Sense, TextStyle, Ui};
 use egui_tiles::{TabState, TileId, Tiles};
-use crate::cpu::CPU;
-use crate::ui::State;
-use crate::ui::windows::*;
 
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub enum Pane {

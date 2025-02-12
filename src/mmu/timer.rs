@@ -1,4 +1,4 @@
-﻿pub struct Timer {
+pub struct Timer {
     divider: u8,
     counter: u8,
     modulo: u8,
@@ -24,31 +24,54 @@ impl Timer {
     }
 
     pub fn read_byte(&self, a: u16) -> u8 {
-        assert!(a >= 0xFF04 && a <= 0xFF07, "Timer does not handler write {:4X}", a);
+        assert!(
+            a >= 0xFF04 && a <= 0xFF07,
+            "Timer does not handler write {:4X}",
+            a
+        );
         match a {
             0xFF04 => self.divider,
             0xFF05 => self.counter,
             0xFF06 => self.modulo,
             0xFF07 => {
-                0xF8 |
-                    (if self.enabled { 0x4 } else { 0 }) |
-                    (match self.step { 16 => 1, 64 => 2, 256 => 3, _ => 0 })
+                0xF8 | (if self.enabled { 0x4 } else { 0 })
+                    | (match self.step {
+                        16 => 1,
+                        64 => 2,
+                        256 => 3,
+                        _ => 0,
+                    })
             }
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 
     pub fn write_byte(&mut self, a: u16, v: u8) {
-        assert!(a >= 0xFF04 && a <= 0xFF07, "Timer does not handler write {:4X}", a);
+        assert!(
+            a >= 0xFF04 && a <= 0xFF07,
+            "Timer does not handler write {:4X}",
+            a
+        );
         match a {
-            0xFF04 => { self.divider = 0; },
-            0xFF05 => { self.counter = v; },
-            0xFF06 => { self.modulo = v; },
+            0xFF04 => {
+                self.divider = 0;
+            }
+            0xFF05 => {
+                self.counter = v;
+            }
+            0xFF06 => {
+                self.modulo = v;
+            }
             0xFF07 => {
                 self.enabled = v & 0x4 != 0;
-                self.step = match v & 0x3 { 1 => 16, 2 => 64, 3 => 256, _ => 1024 };
+                self.step = match v & 0x3 {
+                    1 => 16,
+                    2 => 64,
+                    3 => 256,
+                    _ => 1024,
+                };
             }
-            _ => unreachable!()
+            _ => unreachable!(),
         };
     }
 
@@ -73,4 +96,3 @@ impl Timer {
         }
     }
 }
-

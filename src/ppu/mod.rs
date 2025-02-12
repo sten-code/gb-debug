@@ -1,9 +1,13 @@
-﻿use std::cmp::Ordering;
 use crate::gbmode::GbMode;
+use std::cmp::Ordering;
 
 #[inline(always)]
 fn bit(value: bool, position: u8) -> u8 {
-    if value { 1 << position } else { 0 }
+    if value {
+        1 << position
+    } else {
+        0
+    }
 }
 
 #[inline(always)]
@@ -22,8 +26,8 @@ enum PriorityType {
 }
 
 pub struct PPU {
-    pub vram: [[u8; 0x2000]; 2], // Video RAM, 2 banks of 0x2000 bytes
-    oam: [u8; 0xA0], // Object Attribute Memory
+    pub vram: [[u8; 0x2000]; 2],  // Video RAM, 2 banks of 0x2000 bytes
+    oam: [u8; 0xA0],              // Object Attribute Memory
     pub selected_vram_bank: bool, // 0 or 1
     lcd_on: bool,
     win_tilemap: u16,
@@ -46,7 +50,7 @@ pub struct PPU {
     pub scx: u8, // aka Viewport X or Scroll X
 
     // https://gbdev.io/pandocs/Palettes.html#lcd-monochrome-palettes
-    pub bg_palette: u8, // (BGP) Background Palette Data, DMG only
+    pub bg_palette: u8,   // (BGP) Background Palette Data, DMG only
     pub obj_palette0: u8, // (OBP0) Object Palette 0 Data, DMG only
     pub obj_palette1: u8, // (OBP1) Object Palette 1 Data, DMG only
 
@@ -55,17 +59,17 @@ pub struct PPU {
 
     // https://gbdev.io/pandocs/Palettes.html#lcd-color-palettes-cgb-only
     cbg_palette_auto_increment: bool,
-    cbg_palette_index: u8, // (BGPI) Background palette index
+    cbg_palette_index: u8,              // (BGPI) Background palette index
     pub cbg_palette: [[[u8; 3]; 4]; 8], // (BGPD) Background palette data
     cobj_palette_auto_increment: bool,
-    cobj_palette_index: u8, // (OBPI) Object palette index
+    cobj_palette_index: u8,              // (OBPI) Object palette index
     pub cobj_palette: [[[u8; 3]; 4]; 8], // (OBPD) Object palette Data
 
     wy_trigger: bool,
     pub wy_pos: i16,
     pub interrupt: u8,
     pub hblank: bool, // True if the PPU is in HBlank mode
-    dots: u16, // Number of cycles since the last mode change
+    dots: u16,        // Number of cycles since the last mode change
 
     pub screen_buffer: [u8; SCREEN_WIDTH as usize * SCREEN_HEIGHT as usize * 3],
     pub screen_buffer_updated: bool,
@@ -157,7 +161,8 @@ impl PPU {
                     if self.mode != 2 {
                         self.change_mode(2);
                     }
-                } else if self.dots <= 252 { // 80 + 172
+                } else if self.dots <= 252 {
+                    // 80 + 172
                     if self.mode != 3 {
                         self.change_mode(3);
                     }
@@ -181,7 +186,7 @@ impl PPU {
             0 => 255,
             1 => 192,
             2 => 96,
-            _ => 0
+            _ => 0,
         }
     }
 
@@ -205,8 +210,10 @@ impl PPU {
                 }
                 self.screen_buffer_updated = true;
             }
-            2 => if self.mode_2_interrupt {
-                self.interrupt |= bit(true, 1);
+            2 => {
+                if self.mode_2_interrupt {
+                    self.interrupt |= bit(true, 1);
+                }
             }
             3 => {
                 if self.win_enabled && !self.wy_trigger && self.ly == self.winy {
@@ -214,7 +221,7 @@ impl PPU {
                     self.wy_pos = -1;
                 }
             }
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 
@@ -233,9 +240,12 @@ impl PPU {
     }
 
     fn set_color(&mut self, x: u8, color: u8) {
-        self.screen_buffer[self.ly as usize * SCREEN_WIDTH as usize * 3 + x as usize * 3 + 0] = color;
-        self.screen_buffer[self.ly as usize * SCREEN_WIDTH as usize * 3 + x as usize * 3 + 1] = color;
-        self.screen_buffer[self.ly as usize * SCREEN_WIDTH as usize * 3 + x as usize * 3 + 2] = color;
+        self.screen_buffer[self.ly as usize * SCREEN_WIDTH as usize * 3 + x as usize * 3 + 0] =
+            color;
+        self.screen_buffer[self.ly as usize * SCREEN_WIDTH as usize * 3 + x as usize * 3 + 1] =
+            color;
+        self.screen_buffer[self.ly as usize * SCREEN_WIDTH as usize * 3 + x as usize * 3 + 2] =
+            color;
     }
 
     fn set_rgb(&mut self, x: u8, r: u8, g: u8, b: u8) {
@@ -269,25 +279,32 @@ impl PPU {
             let win_x = -((self.winx as i16) - 7) + (x as i16);
             let bg_x = self.scx as u16 + x as u16;
 
-            let (tile_map_base_addr, tile_y, tile_x, pixel_y, pixel_x) = if win_y >= 0 && win_x >= 0 {
-                (self.win_tilemap,
-                 win_tile_y,
-                 win_x as u16 / 8,
-                 win_y as u16 % 8,
-                 win_x as u8 % 8)
+            let (tile_map_base_addr, tile_y, tile_x, pixel_y, pixel_x) = if win_y >= 0 && win_x >= 0
+            {
+                (
+                    self.win_tilemap,
+                    win_tile_y,
+                    win_x as u16 / 8,
+                    win_y as u16 % 8,
+                    win_x as u8 % 8,
+                )
             } else if draw_bg {
-                (self.bg_tilemap_addr,
-                 bg_tile_y,
-                 (bg_x / 8) & 31,
-                 bg_y as u16 % 8,
-                 bg_x as u8 % 8)
+                (
+                    self.bg_tilemap_addr,
+                    bg_tile_y,
+                    (bg_x / 8) & 31,
+                    bg_y as u16 % 8,
+                    bg_x as u8 % 8,
+                )
             } else {
                 continue;
             };
 
-            let tile_num = self.vram[0][tile_map_base_addr as usize - 0x8000 + tile_y as usize * 32 + tile_x as usize];
+            let tile_num = self.vram[0]
+                [tile_map_base_addr as usize - 0x8000 + tile_y as usize * 32 + tile_x as usize];
             let (palette_num, vram1, x_flip, y_flip, priority) = if self.gb_mode == GbMode::Color {
-                let flags = self.vram[1][tile_map_base_addr as usize - 0x8000 + tile_y as usize * 32 + tile_x as usize];
+                let flags = self.vram[1]
+                    [tile_map_base_addr as usize - 0x8000 + tile_y as usize * 32 + tile_x as usize];
                 (
                     flags & 0b111,
                     is_set(flags, 3),
@@ -299,13 +316,12 @@ impl PPU {
                 (0, false, false, false, false)
             };
 
-            let tileaddress = self.tile_data_addr + (
-                if self.tile_data_addr == 0x8000 {
+            let tileaddress = self.tile_data_addr
+                + (if self.tile_data_addr == 0x8000 {
                     tile_num as u16
                 } else {
                     (tile_num as i8 as i16 + 128) as u16
-                }
-            ) * 16;
+                }) * 16;
 
             let a0 = if y_flip {
                 tileaddress + 14 - pixel_y * 2
@@ -314,19 +330,27 @@ impl PPU {
             };
 
             let (b1, b2) = if vram1 {
-                (self.vram[1][a0 as usize - 0x8000], self.vram[1][a0 as usize - 0x8000])
+                (
+                    self.vram[1][a0 as usize - 0x8000],
+                    self.vram[1][a0 as usize - 0x8000],
+                )
             } else {
-                (self.vram[0][a0 as usize - 0x8000], self.vram[0][a0 as usize - 0x8000 + 1])
+                (
+                    self.vram[0][a0 as usize - 0x8000],
+                    self.vram[0][a0 as usize - 0x8000 + 1],
+                )
             };
 
-            let x_bit = if x_flip {
-                pixel_x
-            } else {
-                7 - pixel_x
-            };
+            let x_bit = if x_flip { pixel_x } else { 7 - pixel_x };
             let color_num = bit(is_set(b2, x_bit), 1) | bit(is_set(b1, x_bit), 0);
 
-            self.bg_priority[x as usize] = if color_num == 0 { PriorityType::Color0 } else if priority { PriorityType::PriorityFlag } else { PriorityType::Normal };
+            self.bg_priority[x as usize] = if color_num == 0 {
+                PriorityType::Color0
+            } else if priority {
+                PriorityType::PriorityFlag
+            } else {
+                PriorityType::Normal
+            };
             if self.gb_mode == GbMode::Color {
                 let r = self.cbg_palette[palette_num as usize][color_num as usize][0];
                 let g = self.cbg_palette[palette_num as usize][color_num as usize][1];
@@ -339,9 +363,10 @@ impl PPU {
         }
     }
 
-
     fn draw_sprites(&mut self) {
-        if !self.sprite_enabled { return; }
+        if !self.sprite_enabled {
+            return;
+        }
 
         let line = self.ly as i32;
         let sprite_size = self.sprite_size as i32;
@@ -351,7 +376,9 @@ impl PPU {
         for index in 0..40 {
             let sprite_addr = (index as u16) * 4;
             let sprite_y = self.read_oam(sprite_addr + 0) as u16 as i32 - 16;
-            if line < sprite_y || line >= sprite_y + sprite_size { continue; }
+            if line < sprite_y || line >= sprite_y + sprite_size {
+                continue;
+            }
             let sprite_x = self.read_oam(sprite_addr + 1) as u16 as i32 - 8;
             sprites[sprite_count] = (sprite_x, sprite_y, index);
             sprite_count += 1;
@@ -362,18 +389,24 @@ impl PPU {
         if self.gb_mode == GbMode::Color {
             sprites[..sprite_count].sort_unstable_by(|a, b| b.2.cmp(&a.2));
         } else {
-            sprites[..sprite_count].sort_unstable_by(|a, b| if a.0 != b.0 {
-                b.0.cmp(&a.0)
-            } else {
-                b.2.cmp(&a.2)
+            sprites[..sprite_count].sort_unstable_by(|a, b| {
+                if a.0 != b.0 {
+                    b.0.cmp(&a.0)
+                } else {
+                    b.2.cmp(&a.2)
+                }
             });
         }
 
         for &(sprite_x, sprite_y, i) in &sprites[..sprite_count] {
-            if sprite_x < -7 || sprite_x >= (SCREEN_WIDTH as i32) { continue; }
+            if sprite_x < -7 || sprite_x >= (SCREEN_WIDTH as i32) {
+                continue;
+            }
 
             let sprite_addr = (i as u16) * 4;
-            let tile_num = (self.read_oam(sprite_addr + 2) & (if self.sprite_size == 16 { 0xFE } else { 0xFF })) as u16;
+            let tile_num = (self.read_oam(sprite_addr + 2)
+                & (if self.sprite_size == 16 { 0xFE } else { 0xFF }))
+                as u16;
             let flags = self.read_oam(sprite_addr + 3) as usize;
             let palette_num = flags & 0x07;
             let vram1: bool = flags & (1 << 3) != 0;
@@ -390,13 +423,21 @@ impl PPU {
 
             let tile_address = tile_num * 16 + tile_y * 2;
             let (bit1, bit2) = if vram1 && self.gb_mode == GbMode::Color {
-                (self.vram[1][tile_address as usize], self.vram[1][tile_address as usize + 1])
+                (
+                    self.vram[1][tile_address as usize],
+                    self.vram[1][tile_address as usize + 1],
+                )
             } else {
-                (self.vram[0][tile_address as usize], self.vram[0][tile_address as usize + 1])
+                (
+                    self.vram[0][tile_address as usize],
+                    self.vram[0][tile_address as usize + 1],
+                )
             };
 
             for x in 0..8 {
-                if sprite_x + x < 0 || sprite_x + x >= (SCREEN_WIDTH as i32) { continue; }
+                if sprite_x + x < 0 || sprite_x + x >= (SCREEN_WIDTH as i32) {
+                    continue;
+                }
 
                 let x_bit = 1 << (if x_flip { x } else { 7 - x } as u32);
                 let color_num = bit(bit2 & x_bit != 0, 1) | bit(bit1 & x_bit != 0, 0);
@@ -405,7 +446,12 @@ impl PPU {
                 }
 
                 if self.gb_mode == GbMode::Color {
-                    if self.bg_enabled && (self.bg_priority[(sprite_x + x) as usize] == PriorityType::PriorityFlag || (below_bg && self.bg_priority[(sprite_x + x) as usize] != PriorityType::Color0)) {
+                    if self.bg_enabled
+                        && (self.bg_priority[(sprite_x + x) as usize] == PriorityType::PriorityFlag
+                            || (below_bg
+                                && self.bg_priority[(sprite_x + x) as usize]
+                                    != PriorityType::Color0))
+                    {
                         continue;
                     }
                     let r = self.cobj_palette[palette_num][color_num as usize][0];
@@ -413,11 +459,21 @@ impl PPU {
                     let b = self.cobj_palette[palette_num][color_num as usize][2];
                     self.set_rgb((sprite_x + x) as u8, r, g, b);
                 } else {
-                    if below_bg && self.bg_priority[(sprite_x + x) as usize] != PriorityType::Color0 { continue; }
-                    self.set_color((sprite_x + x) as u8, PPU::get_monochrome_palette_color(
-                        if use_palette1 { self.obj_palette1 } else { self.obj_palette0 },
-                        color_num,
-                    ));
+                    if below_bg && self.bg_priority[(sprite_x + x) as usize] != PriorityType::Color0
+                    {
+                        continue;
+                    }
+                    self.set_color(
+                        (sprite_x + x) as u8,
+                        PPU::get_monochrome_palette_color(
+                            if use_palette1 {
+                                self.obj_palette1
+                            } else {
+                                self.obj_palette0
+                            },
+                            color_num,
+                        ),
+                    );
                 }
             }
         }
@@ -444,39 +500,46 @@ impl PPU {
     }
 
     pub fn read_register(&self, addr: u16) -> u8 {
-        assert!((addr >= 0xFF40 && addr <= 0xFF4B) || (addr >= 0xFF68 && addr <= 0xFF6B), "PPU register out of range");
+        assert!(
+            (addr >= 0xFF40 && addr <= 0xFF4B) || (addr >= 0xFF68 && addr <= 0xFF6B),
+            "PPU register out of range"
+        );
         match addr {
-            0xFF40 => bit(self.lcd_on, 7) // https://gbdev.io/pandocs/LCDC.html#ff40--lcdc-lcd-control
+            0xFF40 => {
+                bit(self.lcd_on, 7) // https://gbdev.io/pandocs/LCDC.html#ff40--lcdc-lcd-control
                 | bit(self.win_tilemap == 0x9C00, 6)
                 | bit(self.win_enabled, 5)
                 | bit(self.tile_data_addr == 0x8000, 4)
                 | bit(self.bg_tilemap_addr == 0x9C00, 3)
                 | bit(self.sprite_size == 16, 2)
                 | bit(self.sprite_enabled, 1)
-                | bit(self.bg_enabled, 0),
-            0xFF41 => bit(true, 7) // https://gbdev.io/pandocs/STAT.html#ff41--stat-lcd-status
+                | bit(self.bg_enabled, 0)
+            }
+            0xFF41 => {
+                bit(true, 7) // https://gbdev.io/pandocs/STAT.html#ff41--stat-lcd-status
                 | bit(self.lyc_interrupt, 6)
                 | bit(self.mode_2_interrupt, 5)
                 | bit(self.mode_1_interrupt, 4)
                 | bit(self.mode_0_interrupt, 3)
                 | bit(self.ly == self.lyc, 2)
-                | self.mode,
+                | self.mode
+            }
             0xFF42 => self.scy,
             0xFF43 => self.scx,
             0xFF44 => self.ly,
             0xFF45 => self.lyc,
-            0xFF46 => 0x00, // DMA, write-only
-            0xFF47 => self.bg_palette, // DMG only
+            0xFF46 => 0x00,              // DMA, write-only
+            0xFF47 => self.bg_palette,   // DMG only
             0xFF48 => self.obj_palette0, // DMG only
             0xFF49 => self.obj_palette1, // DMG only
             0xFF4A => self.winy,
             0xFF4B => self.winx,
 
             // CGB only
-            0xFF4F..=0xFF6B if self.gb_mode != GbMode::Color => { 0xFF }
-            0xFF68 => bit(self.cbg_palette_auto_increment, 7)
-                | bit(true, 6)
-                | self.cbg_palette_index,
+            0xFF4F..=0xFF6B if self.gb_mode != GbMode::Color => 0xFF,
+            0xFF68 => {
+                bit(self.cbg_palette_auto_increment, 7) | bit(true, 6) | self.cbg_palette_index
+            }
             0xFF69 => {
                 let palette_num = self.cbg_palette_index / 8;
                 // https://gbdev.io/pandocs/Palettes.html#ff69--bcpdbgpd-cgb-mode-only-background-color-palette-data--background-palette-data
@@ -491,31 +554,41 @@ impl PPU {
                 let color_num = (self.cbg_palette_index / 2) % 4; // Because we are doing this alternating, we need to divide by 2
                 if self.cbg_palette_index % 2 == 0 {
                     // Only the first 3 bits of green
-                    self.cbg_palette[palette_num as usize][color_num as usize][0] | ((self.cbg_palette[palette_num as usize][color_num as usize][1] & 0x07) << 5)
+                    self.cbg_palette[palette_num as usize][color_num as usize][0]
+                        | ((self.cbg_palette[palette_num as usize][color_num as usize][1] & 0x07)
+                            << 5)
                 } else {
                     // The last 2 bits of green
-                    ((self.cbg_palette[palette_num as usize][color_num as usize][1] & 0x18) >> 3) | (self.cbg_palette[palette_num as usize][color_num as usize][2] << 2)
+                    ((self.cbg_palette[palette_num as usize][color_num as usize][1] & 0x18) >> 3)
+                        | (self.cbg_palette[palette_num as usize][color_num as usize][2] << 2)
                 }
             }
-            0xFF6A => bit(self.cobj_palette_auto_increment, 7)
-                | bit(true, 6)
-                | self.cobj_palette_index,
+            0xFF6A => {
+                bit(self.cobj_palette_auto_increment, 7) | bit(true, 6) | self.cobj_palette_index
+            }
             0xFF6B => {
                 // Explanation is the same as the background palette
                 let palette_num = self.cobj_palette_index / 8;
                 let color_num = (self.cobj_palette_index / 2) % 4;
                 if self.cobj_palette_index % 2 == 0 {
-                    self.cobj_palette[palette_num as usize][color_num as usize][0] | ((self.cobj_palette[palette_num as usize][color_num as usize][1] & 0x07) << 5)
+                    self.cobj_palette[palette_num as usize][color_num as usize][0]
+                        | ((self.cobj_palette[palette_num as usize][color_num as usize][1] & 0x07)
+                            << 5)
                 } else {
-                    ((self.cobj_palette[palette_num as usize][color_num as usize][1] & 0x18) >> 3) | (self.cobj_palette[palette_num as usize][color_num as usize][2] << 2)
+                    ((self.cobj_palette[palette_num as usize][color_num as usize][1] & 0x18) >> 3)
+                        | (self.cobj_palette[palette_num as usize][color_num as usize][2] << 2)
                 }
             }
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 
     pub fn write_register(&mut self, addr: u16, value: u8) {
-        assert!((addr >= 0xFF40 && addr <= 0xFF4B) || (addr >= 0xFF68 && addr <= 0xFF6B), "PPU register out of range: {:04X}", addr);
+        assert!(
+            (addr >= 0xFF40 && addr <= 0xFF4B) || (addr >= 0xFF68 && addr <= 0xFF6B),
+            "PPU register out of range: {:04X}",
+            addr
+        );
         match addr {
             0xFF40 => {
                 let orig_lcd_on = self.lcd_on;
@@ -572,10 +645,15 @@ impl PPU {
                 let color_num = (self.cbg_palette_index / 2) % 4;
                 if self.cbg_palette_index % 2 == 0 {
                     self.cbg_palette[palette_num as usize][color_num as usize][0] = value & 0x1F;
-                    self.cbg_palette[palette_num as usize][color_num as usize][1] = (self.cbg_palette[palette_num as usize][color_num as usize][1] & 0x18) | (value >> 5);
+                    self.cbg_palette[palette_num as usize][color_num as usize][1] =
+                        (self.cbg_palette[palette_num as usize][color_num as usize][1] & 0x18)
+                            | (value >> 5);
                 } else {
-                    self.cbg_palette[palette_num as usize][color_num as usize][1] = (self.cbg_palette[palette_num as usize][color_num as usize][1] & 0x07) | ((value & 0x03) << 3);
-                    self.cbg_palette[palette_num as usize][color_num as usize][2] = (value >> 2) & 0x1F;
+                    self.cbg_palette[palette_num as usize][color_num as usize][1] =
+                        (self.cbg_palette[palette_num as usize][color_num as usize][1] & 0x07)
+                            | ((value & 0x03) << 3);
+                    self.cbg_palette[palette_num as usize][color_num as usize][2] =
+                        (value >> 2) & 0x1F;
                 }
                 if self.cbg_palette_auto_increment {
                     self.cbg_palette_index = (self.cbg_palette_index + 1) & 0x3F;
@@ -591,16 +669,21 @@ impl PPU {
                 let color_num = (self.cobj_palette_index / 2) % 4;
                 if self.cobj_palette_index % 2 == 0 {
                     self.cobj_palette[palette_num as usize][color_num as usize][0] = value & 0x1F;
-                    self.cobj_palette[palette_num as usize][color_num as usize][1] = (self.cobj_palette[palette_num as usize][color_num as usize][1] & 0x18) | (value >> 5);
+                    self.cobj_palette[palette_num as usize][color_num as usize][1] =
+                        (self.cobj_palette[palette_num as usize][color_num as usize][1] & 0x18)
+                            | (value >> 5);
                 } else {
-                    self.cobj_palette[palette_num as usize][color_num as usize][1] = (self.cobj_palette[palette_num as usize][color_num as usize][1] & 0x07) | ((value & 0x03) << 3);
-                    self.cobj_palette[palette_num as usize][color_num as usize][2] = (value >> 2) & 0x1F;
+                    self.cobj_palette[palette_num as usize][color_num as usize][1] =
+                        (self.cobj_palette[palette_num as usize][color_num as usize][1] & 0x07)
+                            | ((value & 0x03) << 3);
+                    self.cobj_palette[palette_num as usize][color_num as usize][2] =
+                        (value >> 2) & 0x1F;
                 }
                 if self.cobj_palette_auto_increment {
                     self.cobj_palette_index = (self.cobj_palette_index + 1) & 0x3F;
                 }
             }
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 }

@@ -1,13 +1,15 @@
-﻿use crate::cartridge::Cartridge;
-use crate::cpu::instruction::{Instruction, Source8Bit, Reg16Bit, IncDecTarget, Target8Bit, LoadType, DerefTarget, JumpTest, StackTarget};
+use crate::cartridge::Cartridge;
+use crate::cpu::instruction::{
+    DerefTarget, IncDecTarget, Instruction, JumpTest, LoadType, Reg16Bit, Source8Bit, StackTarget, Target8Bit,
+};
 use crate::cpu::register::Registers;
 use crate::gbmode::GbMode;
 use crate::io::sound::AudioPlayer;
 use crate::mbc::MBC;
 use crate::mmu::MMU;
 
-mod register;
 pub mod instruction;
+mod register;
 
 macro_rules! apply_work_8bit_register {
     ($self:ident : $source:ident => $work:ident) => {
@@ -163,10 +165,17 @@ fn is_set(byte: u8, position: u8) -> bool {
     (byte >> position) & 1 == 1
 }
 
+pub struct Call {
+    pub return_address: u16,
+    pub caller_address: u16,
+    pub function_address: u16,
+    pub stack_address: u16,
+}
+
 pub struct CPU {
     pub registers: Registers,
     pub mmu: MMU,
-    pub call_stack: Vec<(u16, u16, u16)>,
+    pub call_stack: Vec<Call>,
     ime: bool,
     is_halted: bool,
     gb_mode: GbMode,
@@ -199,11 +208,18 @@ impl CPU {
 
     pub fn get_current_bank(&self) -> u8 {
         if self.registers.pc < 0x4000 {
+            // 0-3FFF: ROM bank 0
             0
         } else if self.registers.pc < 0x8000 {
+            // 4000-7FFF: Switchable ROM bank
             self.mmu.cartridge.mbc.get_selected_rom_bank()
+        } else if self.registers.pc >= 0xFF80 && self.registers.pc <= 0xFFFE {
+            // FF80-FFFE: High RAM
+            0x80
         } else {
-            self.mmu.cartridge.mbc.get_selected_ram_bank()
+            // Everything else
+            0x81
+            // panic!("PC is in a weird place: ${:04X}", self.registers.pc);
         }
     }
 
@@ -286,7 +302,14 @@ impl CPU {
     fn interrupt(&mut self, address: u16) {
         self.ime = false;
         self.push(self.registers.pc);
-        self.call_stack.push((self.registers.pc, address, self.registers.pc));
+        self.call_stack.push(
+            (Call {
+                return_address: self.registers.pc,
+                function_address: address,
+                caller_address: self.registers.pc,
+                stack_address: self.registers.sp,
+            }),
+        );
         self.registers.pc = address;
         self.mmu.step(12);
     }
@@ -540,7 +563,12 @@ impl CPU {
                     let address = self.read_next_word();
                     let return_address = self.registers.pc.wrapping_add(3);
                     self.push(return_address);
-                    self.call_stack.push((self.registers.pc, address, return_address));
+                    self.call_stack.push(Call {
+                        caller_address: self.registers.pc,
+                        function_address: address,
+                        return_address,
+                        stack_address: self.registers.sp,
+                    });
                     (address, 24)
                 } else {
                     (self.registers.pc.wrapping_add(3), 12)
@@ -554,9 +582,7 @@ impl CPU {
                     (self.registers.pc.wrapping_add(3), 12)
                 }
             }
-            Instruction::JPHL => {
-                (self.registers.get_hl(), 4)
-            }
+            Instruction::JPHL => (self.registers.get_hl(), 4),
             Instruction::JR(condition) => {
                 let should_jump = self.check_condition(condition);
                 if should_jump {
@@ -587,7 +613,12 @@ impl CPU {
             Instruction::RST(vec) => {
                 let return_address = self.registers.pc.wrapping_add(1);
                 self.push(return_address);
-                self.call_stack.push((self.registers.pc, vec as u16, return_address));
+                self.call_stack.push(Call {
+                    caller_address: self.registers.pc,
+                    function_address: vec as u16,
+                    return_address,
+                    stack_address: self.registers.sp,
+                });
                 (vec as u16, 16)
             }
 
@@ -656,18 +687,14 @@ impl CPU {
                 self.is_halted = true;
                 (self.registers.pc.wrapping_add(1), 4)
             }
-            Instruction::NOP => {
-                (self.registers.pc.wrapping_add(1), 4)
-            }
+            Instruction::NOP => (self.registers.pc.wrapping_add(1), 4),
             Instruction::SCF => {
                 self.registers.f.subtract = false;
                 self.registers.f.half_carry = false;
                 self.registers.f.carry = true;
                 (self.registers.pc.wrapping_add(1), 4)
             }
-            Instruction::STOP => {
-                (self.registers.pc.wrapping_add(2), 4)
-            }
+            Instruction::STOP => (self.registers.pc.wrapping_add(2), 4),
         }
     }
 

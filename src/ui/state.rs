@@ -1,12 +1,9 @@
-﻿use crate::cpu::instruction::Instruction;
 use crate::cpu::CPU;
-use crate::disassembler;
-use crate::disassembler::{DisassembledLine, Disassembler};
+use crate::disassembler::{Disassembler};
 use crate::ppu::{SCREEN_HEIGHT, SCREEN_WIDTH};
-use eframe::egui;
 use eframe::epaint::textures::TextureOptions;
 use eframe::epaint::TextureHandle;
-use std::time::Instant;
+use eframe::egui;
 
 pub struct State {
     pub cpu: Option<Box<CPU>>,
@@ -30,13 +27,11 @@ impl State {
             .cycle()
             .take(SCREEN_WIDTH as usize * SCREEN_HEIGHT as usize * 4)
             .collect::<Vec<u8>>();
-        let color_image = egui::ColorImage::from_rgba_unmultiplied(
-            [SCREEN_WIDTH as usize, SCREEN_HEIGHT as usize],
-            &buffer,
-        );
-        let texture =
-            cc.egui_ctx
-                .load_texture("color_buffer", color_image, TextureOptions::NEAREST);
+        let color_image =
+            egui::ColorImage::from_rgba_unmultiplied([SCREEN_WIDTH as usize, SCREEN_HEIGHT as usize], &buffer);
+        let texture = cc
+            .egui_ctx
+            .load_texture("color_buffer", color_image, TextureOptions::NEAREST);
         let mut disassembler = Disassembler::new();
         let pc = if let Some(cpu) = &cpu {
             //disassembler.disassemble(cpu);

@@ -1,6 +1,6 @@
-﻿use eframe::egui::Ui;
-use crate::ui::State;
 use crate::ui::windows::Window;
+use crate::ui::State;
+use eframe::egui::Ui;
 
 #[inline(always)]
 pub fn bit(condition: bool) -> u8 {

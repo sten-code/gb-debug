@@ -1,4 +1,4 @@
-﻿use std::fmt::Display;
+use std::fmt::Display;
 use eframe::egui;
 use eframe::emath::Pos2;
 use eframe::epaint::{Color32, Stroke};
@@ -7,8 +7,8 @@ use eframe::egui::{ComboBox, Frame, Image, Rect, TextureHandle, Ui, Widget};
 use crate::cpu::CPU;
 use crate::gbmode::GbMode;
 use crate::ppu::PPU;
-use crate::ui::State;
 use crate::ui::windows::Window;
+use crate::ui::State;
 
 #[inline(always)]
 fn bit(value: bool, position: u8) -> u8 {
@@ -76,7 +76,6 @@ impl Display for TileDataAddress {
     }
 }
 
-
 #[derive(PartialEq, Debug)]
 enum TileMapAddress {
     Auto,
@@ -110,9 +109,18 @@ impl TileMapViewer {
     pub fn new(ctx: &egui::Context) -> Self {
         let mut tiles = Vec::new();
         for i in 0..128 * 3 {
-            let buffer = [0u8, 0u8, 0u8].iter().cloned().cycle().take(64 * 3).collect::<Vec<u8>>();
+            let buffer = [0u8, 0u8, 0u8]
+                .iter()
+                .cloned()
+                .cycle()
+                .take(64 * 3)
+                .collect::<Vec<u8>>();
             let color_image = egui::ColorImage::from_rgb([8, 8], &buffer);
-            let texture = ctx.load_texture(format!("tile_{}", i), color_image, TextureOptions::default());
+            let texture = ctx.load_texture(
+                format!("tile_{}", i),
+                color_image,
+                TextureOptions::default(),
+            );
             tiles.push(Tile {
                 buffer,
                 raw_buffer: vec![0u8; 64],
@@ -179,11 +187,14 @@ impl TileMapViewer {
                             );
                         }
                         GbMode::Classic => {
-                            let color = PPU::get_monochrome_palette_color(match self.selected_classic_palette {
-                                ClassicPalette::BGP => cpu.mmu.ppu.bg_palette,
-                                ClassicPalette::OBP0 => cpu.mmu.ppu.obj_palette0,
-                                ClassicPalette::OBP1 => cpu.mmu.ppu.obj_palette1,
-                            }, color_num);
+                            let color = PPU::get_monochrome_palette_color(
+                                match self.selected_classic_palette {
+                                    ClassicPalette::BGP => cpu.mmu.ppu.bg_palette,
+                                    ClassicPalette::OBP0 => cpu.mmu.ppu.obj_palette0,
+                                    ClassicPalette::OBP1 => cpu.mmu.ppu.obj_palette1,
+                                },
+                                color_num,
+                            );
 
                             tile.buffer[row as usize * 8 * 3 + pixel as usize * 3 + 0] = color;
                             tile.buffer[row as usize * 8 * 3 + pixel as usize * 3 + 1] = color;
@@ -332,7 +343,10 @@ impl TileMapViewer {
                                         cpu.mmu.ppu.cbg_palette[palette as usize][*color_num as usize][2],
                                     );
                                 }
-                                tile.texture.set(egui::ColorImage::from_rgb([8, 8], &tile.buffer), TextureOptions::NEAREST);
+                                tile.texture.set(
+                                    egui::ColorImage::from_rgb([8, 8], &tile.buffer),
+                                    TextureOptions::NEAREST,
+                                );
                             }
 
                             if self.show_grid {

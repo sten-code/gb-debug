@@ -1,50 +1,49 @@
-﻿use crate::assembler::lexer::{Register, Token};
-use crate::cpu::instruction::{IncDecTarget, Instruction, JumpTest, LoadType, Source8Bit, Target8Bit};
+use crate::assembler::lexer::{Register, Token};
+use crate::cpu::instruction::{
+    IncDecTarget, Instruction, JumpTest, LoadType, Source8Bit, Target8Bit,
+};
 
 macro_rules! expect {
-    ($self:ident, $pattern:pat) => {
-        {
-            let token = $self.at();
-            match token {
-                $pattern => {$self.next(); token}
-                _ => panic!("Expected {:?}, got: {:?}", stringify!($pattern), $self.at()),
+    ($self:ident, $pattern:pat) => {{
+        let token = $self.at();
+        match token {
+            $pattern => {
+                $self.next();
+                token
             }
+            _ => panic!("Expected {:?}, got: {:?}", stringify!($pattern), $self.at()),
         }
-    };
+    }};
 }
 
 macro_rules! parse_arithmetic {
-    ($self:ident, $instruction:ident) => {
-        {
-            let (source, imm8) = $self.parse_arithmetic();
-            if source == Source8Bit::N8 {
-                $self.add(Instruction::$instruction(source), vec![imm8]);
-            } else {
-                $self.add_instruction(Instruction::$instruction(source));
-            }
+    ($self:ident, $instruction:ident) => {{
+        let (source, imm8) = $self.parse_arithmetic();
+        if source == Source8Bit::N8 {
+            $self.add(Instruction::$instruction(source), vec![imm8]);
+        } else {
+            $self.add_instruction(Instruction::$instruction(source));
         }
-    };
+    }};
 }
 
 macro_rules! parse_bitwise {
-    ($self:ident, $instruction:ident) => {
-        {
-            let token = $self.at();
-            let bit = match token {
-                Token::Imm8(bit) => {
-                    $self.next();
-                    if bit > 7 {
-                        panic!("Invalid bit number: {}", bit);
-                    }
-                    bit
+    ($self:ident, $instruction:ident) => {{
+        let token = $self.at();
+        let bit = match token {
+            Token::Imm8(bit) => {
+                $self.next();
+                if bit > 7 {
+                    panic!("Invalid bit number: {}", bit);
                 }
-                _ => panic!("Expected imm8, got: {:?}", token),
-            };
-            expect!($self, Token::Comma);
-            let target = $self.parse_target();
-            $self.add_instruction(Instruction::$instruction(bit, target));
-        }
-    };
+                bit
+            }
+            _ => panic!("Expected imm8, got: {:?}", token),
+        };
+        expect!($self, Token::Comma);
+        let target = $self.parse_target();
+        $self.add_instruction(Instruction::$instruction(bit, target));
+    }};
 }
 
 #[derive(Debug)]
@@ -105,11 +104,13 @@ impl Parser {
     }
 
     fn add_instruction(&mut self, instruction: Instruction) {
-        self.instructions.push(FullInstruction::from_instr(instruction));
+        self.instructions
+            .push(FullInstruction::from_instr(instruction));
     }
 
     fn add(&mut self, instruction: Instruction, operands: Vec<u8>) {
-        self.instructions.push(FullInstruction::new(instruction, operands));
+        self.instructions
+            .push(FullInstruction::new(instruction, operands));
     }
 
     pub fn parse(&mut self) {
@@ -141,7 +142,7 @@ impl Parser {
                                 self.add_instruction(Instruction::RET(condition.into()));
                             }
                             _ => self.add_instruction(Instruction::RET(JumpTest::Always)),
-                        }
+                        },
                         "PUSH" => {
                             let token = self.at();
                             match token {
@@ -268,15 +269,15 @@ impl Parser {
                             match self.at() {
                                 Token::Imm8(imm8) => {
                                     self.next();
-                                    self.add(
-                                        Instruction::LD(LoadType::HLFromSPE8),
-                                        vec![imm8],
-                                    );
+                                    self.add(Instruction::LD(LoadType::HLFromSPE8), vec![imm8]);
                                 }
                                 _ => panic!("Expected imm8, got: {:?}", self.at()),
                             }
                         } else {
-                            self.add_instruction(Instruction::LD(LoadType::Byte(destination_reg.into(), source_reg.into())));
+                            self.add_instruction(Instruction::LD(LoadType::Byte(
+                                destination_reg.into(),
+                                source_reg.into(),
+                            )));
                         }
                     }
                     Token::OpenBracket => {
@@ -288,7 +289,10 @@ impl Parser {
                                     // LD r8, [HL]
                                     self.next();
                                     expect!(self, Token::CloseBracket);
-                                    self.add_instruction(Instruction::LD(LoadType::Byte(destination_reg.into(), Target8Bit::HLP)));
+                                    self.add_instruction(Instruction::LD(LoadType::Byte(
+                                        destination_reg.into(),
+                                        Target8Bit::HLP,
+                                    )));
                                 } else if destination_reg != Register::A {
                                     panic!("You can only dereference a register into the A register, got: {:?}", destination_reg);
                                 } else if deref_reg == Register::C {
@@ -300,7 +304,9 @@ impl Parser {
                                     // LD r8, [r16]
                                     self.next();
                                     expect!(self, Token::CloseBracket);
-                                    self.add_instruction(Instruction::LD(LoadType::AFromDeref(deref_reg.into())));
+                                    self.add_instruction(Instruction::LD(LoadType::AFromDeref(
+                                        deref_reg.into(),
+                                    )));
                                 }
                             }
                             Token::Imm16(imm16) => {
@@ -344,7 +350,10 @@ impl Parser {
                                 Token::Register(source_reg) => {
                                     // LD [HL], r8
                                     self.next();
-                                    self.add_instruction(Instruction::LD(LoadType::Byte(Target8Bit::HLP, source_reg.into())));
+                                    self.add_instruction(Instruction::LD(LoadType::Byte(
+                                        Target8Bit::HLP,
+                                        source_reg.into(),
+                                    )));
                                 }
                                 Token::Imm8(imm8) => {
                                     // LD [HL], n8
@@ -369,7 +378,9 @@ impl Parser {
                             expect!(self, Token::CloseBracket);
                             expect!(self, Token::Comma);
                             expect!(self, Token::Register(Register::A));
-                            self.add_instruction(Instruction::LD(LoadType::DerefFromA(destination_reg.into())));
+                            self.add_instruction(Instruction::LD(LoadType::DerefFromA(
+                                destination_reg.into(),
+                            )));
                         }
                     }
                     Token::Imm16(imm16) => {
@@ -514,14 +525,20 @@ impl Parser {
                 match self.at() {
                     Token::Imm16(imm16) => {
                         self.next();
-                        self.add(Instruction::JP(condition.into()), vec![(imm16 & 0xFF) as u8, (imm16 >> 8) as u8]);
+                        self.add(
+                            Instruction::JP(condition.into()),
+                            vec![(imm16 & 0xFF) as u8, (imm16 >> 8) as u8],
+                        );
                     }
                     _ => panic!("Expected imm16, got: {:?}", self.at()),
                 }
             }
             Token::Imm16(imm16) => {
                 self.next();
-                self.add(Instruction::JP(JumpTest::Always), vec![(imm16 & 0xFF) as u8, (imm16 >> 8) as u8]);
+                self.add(
+                    Instruction::JP(JumpTest::Always),
+                    vec![(imm16 & 0xFF) as u8, (imm16 >> 8) as u8],
+                );
             }
             Token::Register(Register::HL) => {
                 self.next();
@@ -540,14 +557,20 @@ impl Parser {
                 match self.at() {
                     Token::Imm16(imm16) => {
                         self.next();
-                        self.add(Instruction::CALL(condition.into()), vec![(imm16 & 0xFF) as u8, (imm16 >> 8) as u8]);
+                        self.add(
+                            Instruction::CALL(condition.into()),
+                            vec![(imm16 & 0xFF) as u8, (imm16 >> 8) as u8],
+                        );
                     }
                     _ => panic!("Expected imm16, got: {:?}", self.at()),
                 }
             }
             Token::Imm16(imm16) => {
                 self.next();
-                self.add(Instruction::CALL(JumpTest::Always), vec![(imm16 & 0xFF) as u8, (imm16 >> 8) as u8]);
+                self.add(
+                    Instruction::CALL(JumpTest::Always),
+                    vec![(imm16 & 0xFF) as u8, (imm16 >> 8) as u8],
+                );
             }
             _ => panic!("Expected condition or imm16, got: {:?}", token),
         }

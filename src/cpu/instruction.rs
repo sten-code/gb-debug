@@ -1,4 +1,4 @@
-﻿use crate::cpu::register::FlagsRegister;
+use crate::cpu::register::FlagsRegister;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Source8Bit {
@@ -18,7 +18,7 @@ impl Source8Bit {
         match self {
             Source8Bit::HLP => "[HL]".to_string(),
             Source8Bit::N8 => format!("${:02X}", byte),
-            _ => format!("{:?}", self)
+            _ => format!("{:?}", self),
         }
     }
 }
@@ -62,7 +62,7 @@ impl IncDecTarget {
     pub fn to_string(&self) -> String {
         match self {
             IncDecTarget::HLP => "[HL]".to_owned(),
-            _ => format!("{:?}", self)
+            _ => format!("{:?}", self),
         }
     }
 }
@@ -83,7 +83,7 @@ impl Target8Bit {
     pub fn to_string(&self) -> String {
         match self {
             Target8Bit::HLP => "[HL]".to_string(),
-            _ => format!("{:?}", self)
+            _ => format!("{:?}", self),
         }
     }
 }
@@ -104,7 +104,7 @@ impl JumpTest {
             JumpTest::Zero => "Z ".to_owned(),
             JumpTest::NotCarry => "NC ".to_owned(),
             JumpTest::Carry => "C ".to_owned(),
-            JumpTest::Always => "".to_owned()
+            JumpTest::Always => "".to_owned(),
         }
     }
 }
@@ -116,7 +116,7 @@ impl JumpTest {
             JumpTest::Zero => flags.zero,
             JumpTest::NotCarry => !flags.carry,
             JumpTest::Carry => flags.carry,
-            JumpTest::Always => true
+            JumpTest::Always => true,
         }
     }
 }
@@ -147,24 +147,26 @@ pub enum LoadType {
     ByteFromImm(Target8Bit),
     AFromDeref(DerefTarget), // LD A, [BC | DE | HL+ | HL-]
     DerefFromA(DerefTarget), // LD [BC | DE | HL+ | HL-], A
-    AFromDerefC, // LD A, [0xFF00 + C]
-    DerefCFromA, // LD [0xFF00 + C], A
-    A8FromA, // LD [0xFF00 + A8], A
-    AFromA8, // LD A, [0xFF00 + A8]
-    A16FromA, // LD [A16], A
-    AFromA16, // LD A, [A16]
+    AFromDerefC,             // LD A, [0xFF00 + C]
+    DerefCFromA,             // LD [0xFF00 + C], A
+    A8FromA,                 // LD [0xFF00 + A8], A
+    AFromA8,                 // LD A, [0xFF00 + A8]
+    A16FromA,                // LD [A16], A
+    AFromA16,                // LD A, [A16]
 
     // 16 bit LD instructions
     WordFromImm(Reg16Bit), // LD (BC | DE | HL | SP), N16
-    SPFromHL, // LD SP, HL
-    HLFromSPE8, // LD HL, SP + E8
-    A16FromSP, // LD [A16], SP
+    SPFromHL,              // LD SP, HL
+    HLFromSPE8,            // LD HL, SP + E8
+    A16FromSP,             // LD [A16], SP
 }
 
 impl LoadType {
     fn to_string(&self, byte1: u8, byte2: u8) -> String {
         match self {
-            LoadType::Byte(target, source) => format!("{}, {}", target.to_string(), source.to_string()),
+            LoadType::Byte(target, source) => {
+                format!("{}, {}", target.to_string(), source.to_string())
+            }
             LoadType::ByteFromImm(target) => format!("{}, ${:02X}", target.to_string(), byte1),
             LoadType::AFromDeref(deref) => format!("A, {}", deref.to_string()),
             LoadType::DerefFromA(deref) => format!("{}, A", deref.to_string()),
@@ -177,7 +179,11 @@ impl LoadType {
 
             LoadType::WordFromImm(target) => format!("{:?}, ${:02X}{:02X}", target, byte2, byte1),
             LoadType::SPFromHL => "SP, HL".to_owned(),
-            LoadType::HLFromSPE8 => format!("HL, SP {} {}", if (byte1 as i8) >= 0 { "+" } else { "-" }, (byte1 as i8).abs()),
+            LoadType::HLFromSPE8 => format!(
+                "HL, SP {} {}",
+                if (byte1 as i8) >= 0 { "+" } else { "-" },
+                (byte1 as i8).abs()
+            ),
             LoadType::A16FromSP => format!("[${:02X}{:02X}], SP", byte2, byte1),
         }
     }
@@ -262,39 +268,39 @@ impl Instruction {
         match self {
             Instruction::ADC(target) => match target {
                 Source8Bit::N8 => 2,
-                _ => 1
+                _ => 1,
             },
             Instruction::ADD(source) => match source {
                 Source8Bit::N8 => 2,
-                _ => 1
+                _ => 1,
             },
             Instruction::ADDHL(_) => 1,
             Instruction::ADDSP => 2,
             Instruction::AND(target) => match target {
                 Source8Bit::N8 => 2,
-                _ => 1
+                _ => 1,
             },
             Instruction::CP(target) => match target {
                 Source8Bit::N8 => 2,
-                _ => 1
+                _ => 1,
             },
             Instruction::DEC(_) => 1,
             Instruction::INC(_) => 1,
             Instruction::OR(target) => match target {
                 Source8Bit::N8 => 2,
-                _ => 1
+                _ => 1,
             },
             Instruction::SBC(target) => match target {
                 Source8Bit::N8 => 2,
-                _ => 1
+                _ => 1,
             },
             Instruction::SUB(target) => match target {
                 Source8Bit::N8 => 2,
-                _ => 1
+                _ => 1,
             },
             Instruction::XOR(target) => match target {
                 Source8Bit::N8 => 2,
-                _ => 1
+                _ => 1,
             },
             Instruction::BIT(_, _) => 2,
             Instruction::RES(_, _) => 2,
@@ -326,7 +332,7 @@ impl Instruction {
                 LoadType::WordFromImm(_) => 3,
                 LoadType::A16FromSP => 3,
                 LoadType::HLFromSPE8 => 2,
-                _ => 1
+                _ => 1,
             },
             Instruction::CALL(_) => 3,
             Instruction::JP(_) => 3,
@@ -345,7 +351,7 @@ impl Instruction {
             Instruction::HALT => 1,
             Instruction::NOP => 1,
             Instruction::SCF => 1,
-            Instruction::STOP => 2
+            Instruction::STOP => 2,
         }
     }
 
@@ -379,16 +385,27 @@ impl Instruction {
             Instruction::SWAP(target) => format!("SWAP {}", target.to_string()),
             Instruction::SRL(target) => format!("SRL  {}", target.to_string()),
             Instruction::LD(load_type) => format!("LD   {}", load_type.to_string(byte1, byte2)),
-            Instruction::CALL(test) => format!("CALL {}func_{:02X}{:02X}", test.to_string(), byte2, byte1),
-            Instruction::JP(test) => format!("JP   {}addr_{:02X}{:02X}", test.to_string(), byte2, byte1),
+            Instruction::CALL(test) => {
+                format!("CALL {}func_{:02X}{:02X}", test.to_string(), byte2, byte1)
+            }
+            Instruction::JP(test) => {
+                format!("JP   {}addr_{:02X}{:02X}", test.to_string(), byte2, byte1)
+            }
             Instruction::JPHL => "JP HL".to_owned(),
             Instruction::JR(test) => {
                 let jump_address = if byte1 as i8 >= 0 {
                     addr.wrapping_add(2).wrapping_add((byte1 as i8) as u16)
                 } else {
-                    addr.wrapping_add(2).wrapping_sub((byte1 as i8 as i16).unsigned_abs())
+                    addr.wrapping_add(2)
+                        .wrapping_sub((byte1 as i8 as i16).unsigned_abs())
                 };
-                format!("JR   {}addr_{:04X} ; ({}{})", test.to_string(), jump_address, if byte1 as i8 >= 0 { "+" } else { "" }, byte1 as i8)
+                format!(
+                    "JR   {}addr_{:04X} ; ({}{})",
+                    test.to_string(),
+                    jump_address,
+                    if byte1 as i8 >= 0 { "+" } else { "" },
+                    byte1 as i8
+                )
             }
             Instruction::RET(test) => format!("RET  {}", test.to_string()),
             Instruction::RETI => "RETI".to_owned(),
@@ -704,7 +721,7 @@ impl Instruction {
             0xFD => Instruction::SET(7, Target8Bit::L),
             0xFE => Instruction::SET(7, Target8Bit::HLP),
             0xFF => Instruction::SET(7, Target8Bit::A),
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 
@@ -778,70 +795,259 @@ impl Instruction {
             0x3D => Some(Instruction::DEC(IncDecTarget::A)),
             0x3E => Some(Instruction::LD(LoadType::ByteFromImm(Target8Bit::A))),
             0x3F => Some(Instruction::CCF),
-            0x40 => Some(Instruction::LD(LoadType::Byte(Target8Bit::B, Target8Bit::B))),
-            0x41 => Some(Instruction::LD(LoadType::Byte(Target8Bit::B, Target8Bit::C))),
-            0x42 => Some(Instruction::LD(LoadType::Byte(Target8Bit::B, Target8Bit::D))),
-            0x43 => Some(Instruction::LD(LoadType::Byte(Target8Bit::B, Target8Bit::E))),
-            0x44 => Some(Instruction::LD(LoadType::Byte(Target8Bit::B, Target8Bit::H))),
-            0x45 => Some(Instruction::LD(LoadType::Byte(Target8Bit::B, Target8Bit::L))),
-            0x46 => Some(Instruction::LD(LoadType::Byte(Target8Bit::B, Target8Bit::HLP))),
-            0x47 => Some(Instruction::LD(LoadType::Byte(Target8Bit::B, Target8Bit::A))),
-            0x48 => Some(Instruction::LD(LoadType::Byte(Target8Bit::C, Target8Bit::B))),
-            0x49 => Some(Instruction::LD(LoadType::Byte(Target8Bit::C, Target8Bit::C))),
-            0x4A => Some(Instruction::LD(LoadType::Byte(Target8Bit::C, Target8Bit::D))),
-            0x4B => Some(Instruction::LD(LoadType::Byte(Target8Bit::C, Target8Bit::E))),
-            0x4C => Some(Instruction::LD(LoadType::Byte(Target8Bit::C, Target8Bit::H))),
-            0x4D => Some(Instruction::LD(LoadType::Byte(Target8Bit::C, Target8Bit::L))),
-            0x4E => Some(Instruction::LD(LoadType::Byte(Target8Bit::C, Target8Bit::HLP))),
-            0x4F => Some(Instruction::LD(LoadType::Byte(Target8Bit::C, Target8Bit::A))),
-            0x50 => Some(Instruction::LD(LoadType::Byte(Target8Bit::D, Target8Bit::B))),
-            0x51 => Some(Instruction::LD(LoadType::Byte(Target8Bit::D, Target8Bit::C))),
-            0x52 => Some(Instruction::LD(LoadType::Byte(Target8Bit::D, Target8Bit::D))),
-            0x53 => Some(Instruction::LD(LoadType::Byte(Target8Bit::D, Target8Bit::E))),
-            0x54 => Some(Instruction::LD(LoadType::Byte(Target8Bit::D, Target8Bit::H))),
-            0x55 => Some(Instruction::LD(LoadType::Byte(Target8Bit::D, Target8Bit::L))),
-            0x56 => Some(Instruction::LD(LoadType::Byte(Target8Bit::D, Target8Bit::HLP))),
-            0x57 => Some(Instruction::LD(LoadType::Byte(Target8Bit::D, Target8Bit::A))),
-            0x58 => Some(Instruction::LD(LoadType::Byte(Target8Bit::E, Target8Bit::B))),
-            0x59 => Some(Instruction::LD(LoadType::Byte(Target8Bit::E, Target8Bit::C))),
-            0x5A => Some(Instruction::LD(LoadType::Byte(Target8Bit::E, Target8Bit::D))),
-            0x5B => Some(Instruction::LD(LoadType::Byte(Target8Bit::E, Target8Bit::E))),
-            0x5C => Some(Instruction::LD(LoadType::Byte(Target8Bit::E, Target8Bit::H))),
-            0x5D => Some(Instruction::LD(LoadType::Byte(Target8Bit::E, Target8Bit::L))),
-            0x5E => Some(Instruction::LD(LoadType::Byte(Target8Bit::E, Target8Bit::HLP))),
-            0x5F => Some(Instruction::LD(LoadType::Byte(Target8Bit::E, Target8Bit::A))),
-            0x60 => Some(Instruction::LD(LoadType::Byte(Target8Bit::H, Target8Bit::B))),
-            0x61 => Some(Instruction::LD(LoadType::Byte(Target8Bit::H, Target8Bit::C))),
-            0x62 => Some(Instruction::LD(LoadType::Byte(Target8Bit::H, Target8Bit::D))),
-            0x63 => Some(Instruction::LD(LoadType::Byte(Target8Bit::H, Target8Bit::E))),
-            0x64 => Some(Instruction::LD(LoadType::Byte(Target8Bit::H, Target8Bit::H))),
-            0x65 => Some(Instruction::LD(LoadType::Byte(Target8Bit::H, Target8Bit::L))),
-            0x66 => Some(Instruction::LD(LoadType::Byte(Target8Bit::H, Target8Bit::HLP))),
-            0x67 => Some(Instruction::LD(LoadType::Byte(Target8Bit::H, Target8Bit::A))),
-            0x68 => Some(Instruction::LD(LoadType::Byte(Target8Bit::L, Target8Bit::B))),
-            0x69 => Some(Instruction::LD(LoadType::Byte(Target8Bit::L, Target8Bit::C))),
-            0x6A => Some(Instruction::LD(LoadType::Byte(Target8Bit::L, Target8Bit::D))),
-            0x6B => Some(Instruction::LD(LoadType::Byte(Target8Bit::L, Target8Bit::E))),
-            0x6C => Some(Instruction::LD(LoadType::Byte(Target8Bit::L, Target8Bit::H))),
-            0x6D => Some(Instruction::LD(LoadType::Byte(Target8Bit::L, Target8Bit::L))),
-            0x6E => Some(Instruction::LD(LoadType::Byte(Target8Bit::L, Target8Bit::HLP))),
-            0x6F => Some(Instruction::LD(LoadType::Byte(Target8Bit::L, Target8Bit::A))),
-            0x70 => Some(Instruction::LD(LoadType::Byte(Target8Bit::HLP, Target8Bit::B))),
-            0x71 => Some(Instruction::LD(LoadType::Byte(Target8Bit::HLP, Target8Bit::C))),
-            0x72 => Some(Instruction::LD(LoadType::Byte(Target8Bit::HLP, Target8Bit::D))),
-            0x73 => Some(Instruction::LD(LoadType::Byte(Target8Bit::HLP, Target8Bit::E))),
-            0x74 => Some(Instruction::LD(LoadType::Byte(Target8Bit::HLP, Target8Bit::H))),
-            0x75 => Some(Instruction::LD(LoadType::Byte(Target8Bit::HLP, Target8Bit::L))),
+            0x40 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::B,
+                Target8Bit::B,
+            ))),
+            0x41 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::B,
+                Target8Bit::C,
+            ))),
+            0x42 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::B,
+                Target8Bit::D,
+            ))),
+            0x43 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::B,
+                Target8Bit::E,
+            ))),
+            0x44 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::B,
+                Target8Bit::H,
+            ))),
+            0x45 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::B,
+                Target8Bit::L,
+            ))),
+            0x46 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::B,
+                Target8Bit::HLP,
+            ))),
+            0x47 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::B,
+                Target8Bit::A,
+            ))),
+            0x48 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::C,
+                Target8Bit::B,
+            ))),
+            0x49 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::C,
+                Target8Bit::C,
+            ))),
+            0x4A => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::C,
+                Target8Bit::D,
+            ))),
+            0x4B => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::C,
+                Target8Bit::E,
+            ))),
+            0x4C => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::C,
+                Target8Bit::H,
+            ))),
+            0x4D => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::C,
+                Target8Bit::L,
+            ))),
+            0x4E => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::C,
+                Target8Bit::HLP,
+            ))),
+            0x4F => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::C,
+                Target8Bit::A,
+            ))),
+            0x50 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::D,
+                Target8Bit::B,
+            ))),
+            0x51 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::D,
+                Target8Bit::C,
+            ))),
+            0x52 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::D,
+                Target8Bit::D,
+            ))),
+            0x53 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::D,
+                Target8Bit::E,
+            ))),
+            0x54 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::D,
+                Target8Bit::H,
+            ))),
+            0x55 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::D,
+                Target8Bit::L,
+            ))),
+            0x56 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::D,
+                Target8Bit::HLP,
+            ))),
+            0x57 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::D,
+                Target8Bit::A,
+            ))),
+            0x58 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::E,
+                Target8Bit::B,
+            ))),
+            0x59 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::E,
+                Target8Bit::C,
+            ))),
+            0x5A => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::E,
+                Target8Bit::D,
+            ))),
+            0x5B => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::E,
+                Target8Bit::E,
+            ))),
+            0x5C => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::E,
+                Target8Bit::H,
+            ))),
+            0x5D => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::E,
+                Target8Bit::L,
+            ))),
+            0x5E => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::E,
+                Target8Bit::HLP,
+            ))),
+            0x5F => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::E,
+                Target8Bit::A,
+            ))),
+            0x60 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::H,
+                Target8Bit::B,
+            ))),
+            0x61 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::H,
+                Target8Bit::C,
+            ))),
+            0x62 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::H,
+                Target8Bit::D,
+            ))),
+            0x63 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::H,
+                Target8Bit::E,
+            ))),
+            0x64 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::H,
+                Target8Bit::H,
+            ))),
+            0x65 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::H,
+                Target8Bit::L,
+            ))),
+            0x66 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::H,
+                Target8Bit::HLP,
+            ))),
+            0x67 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::H,
+                Target8Bit::A,
+            ))),
+            0x68 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::L,
+                Target8Bit::B,
+            ))),
+            0x69 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::L,
+                Target8Bit::C,
+            ))),
+            0x6A => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::L,
+                Target8Bit::D,
+            ))),
+            0x6B => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::L,
+                Target8Bit::E,
+            ))),
+            0x6C => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::L,
+                Target8Bit::H,
+            ))),
+            0x6D => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::L,
+                Target8Bit::L,
+            ))),
+            0x6E => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::L,
+                Target8Bit::HLP,
+            ))),
+            0x6F => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::L,
+                Target8Bit::A,
+            ))),
+            0x70 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::HLP,
+                Target8Bit::B,
+            ))),
+            0x71 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::HLP,
+                Target8Bit::C,
+            ))),
+            0x72 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::HLP,
+                Target8Bit::D,
+            ))),
+            0x73 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::HLP,
+                Target8Bit::E,
+            ))),
+            0x74 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::HLP,
+                Target8Bit::H,
+            ))),
+            0x75 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::HLP,
+                Target8Bit::L,
+            ))),
             0x76 => Some(Instruction::HALT),
-            0x77 => Some(Instruction::LD(LoadType::Byte(Target8Bit::HLP, Target8Bit::A))),
-            0x78 => Some(Instruction::LD(LoadType::Byte(Target8Bit::A, Target8Bit::B))),
-            0x79 => Some(Instruction::LD(LoadType::Byte(Target8Bit::A, Target8Bit::C))),
-            0x7A => Some(Instruction::LD(LoadType::Byte(Target8Bit::A, Target8Bit::D))),
-            0x7B => Some(Instruction::LD(LoadType::Byte(Target8Bit::A, Target8Bit::E))),
-            0x7C => Some(Instruction::LD(LoadType::Byte(Target8Bit::A, Target8Bit::H))),
-            0x7D => Some(Instruction::LD(LoadType::Byte(Target8Bit::A, Target8Bit::L))),
-            0x7E => Some(Instruction::LD(LoadType::Byte(Target8Bit::A, Target8Bit::HLP))),
-            0x7F => Some(Instruction::LD(LoadType::Byte(Target8Bit::A, Target8Bit::A))),
+            0x77 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::HLP,
+                Target8Bit::A,
+            ))),
+            0x78 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::A,
+                Target8Bit::B,
+            ))),
+            0x79 => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::A,
+                Target8Bit::C,
+            ))),
+            0x7A => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::A,
+                Target8Bit::D,
+            ))),
+            0x7B => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::A,
+                Target8Bit::E,
+            ))),
+            0x7C => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::A,
+                Target8Bit::H,
+            ))),
+            0x7D => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::A,
+                Target8Bit::L,
+            ))),
+            0x7E => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::A,
+                Target8Bit::HLP,
+            ))),
+            0x7F => Some(Instruction::LD(LoadType::Byte(
+                Target8Bit::A,
+                Target8Bit::A,
+            ))),
 
             0x80 => Some(Instruction::ADD(Source8Bit::B)),
             0x81 => Some(Instruction::ADD(Source8Bit::C)),
@@ -982,10 +1188,9 @@ impl Instruction {
             0xFD => None, // - (unused)
             0xFE => Some(Instruction::CP(Source8Bit::N8)),
             0xFF => Some(Instruction::RST(0x38)),
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
-
 
     pub fn is_prefixed(&self) -> bool {
         match self {
@@ -1000,7 +1205,7 @@ impl Instruction {
             Instruction::BIT(_, _) => true,
             Instruction::RES(_, _) => true,
             Instruction::SET(_, _) => true,
-            _ => false
+            _ => false,
         }
     }
 

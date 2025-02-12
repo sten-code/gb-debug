@@ -1,11 +1,8 @@
-﻿use crate::disassembler::LineType;
+use crate::disassembler::LineType;
 use crate::ui::windows::Window;
 use crate::ui::State;
 use eframe::egui::scroll_area::ScrollAreaOutput;
-use eframe::egui::{
-    Rect, RichText, ScrollArea, Sense, TextStyle, TextWrapMode, Ui, Vec2, WidgetInfo, WidgetText,
-    WidgetType,
-};
+use eframe::egui::{Rect, Response, RichText, ScrollArea, Sense, TextStyle, TextWrapMode, Ui, Vec2, WidgetInfo, WidgetText, WidgetType};
 use eframe::emath::{Align, Pos2};
 use eframe::epaint::Color32;
 
@@ -110,6 +107,32 @@ impl Disassembly {
         //     }
         // });
     }
+
+    fn draw_line(&self, widget_text: WidgetText, ui: &mut Ui) -> Response {
+        let galley = widget_text.into_galley(
+            ui,
+            Some(TextWrapMode::Extend),
+            ui.available_width(),
+            TextStyle::Button,
+        );
+        let (rect, response) = ui.allocate_at_least(galley.size(), Sense::click());
+        response.widget_info(|| {
+            WidgetInfo::selected(
+                WidgetType::SelectableLabel,
+                ui.is_enabled(),
+                false,
+                galley.text(),
+            )
+        });
+
+        let text_pos = ui
+            .layout()
+            .align_size_within_rect(galley.size(), rect.shrink2(Vec2::ZERO))
+            .min;
+        let visuals = ui.style().interact_selectable(&response, false);
+        ui.painter().galley(text_pos, galley, visuals.text_color());
+        response
+    }
 }
 
 impl Window for Disassembly {
@@ -121,12 +144,11 @@ impl Window for Disassembly {
         };
 
         let bank = cpu.get_current_bank();
-        let disassembly =
-            if let Some(disassembly) = state.disassembler.disassembly.get(bank as usize) {
-                disassembly
-            } else {
-                return;
-            };
+        let disassembly = if let Some(disassembly) = state.disassembler.disassembly.get(bank as usize) {
+            disassembly
+        } else {
+            return;
+        };
 
         const LABEL_HEIGHT: f32 = 19.5;
         let height = ui.available_height();
@@ -151,10 +173,8 @@ impl Window for Disassembly {
                                 .unwrap_or(0);
                             let y = pc_index as f32 * LABEL_HEIGHT + 52.0;
                             let rel_y = y - output.state.offset.y;
-                            let rect =
-                                Rect::from_min_max(Pos2::new(0.0, rel_y), Pos2::new(0.0, rel_y));
-                            let is_visible =
-                                y > output.state.offset.y && y < output.state.offset.y + height;
+                            let rect = Rect::from_min_max(Pos2::new(0.0, rel_y), Pos2::new(0.0, rel_y));
+                            let is_visible = y > output.state.offset.y && y < output.state.offset.y + height;
                             if state.should_scroll_disasm && !is_visible {
                                 ui.scroll_to_rect(rect, Some(Align::TOP));
                                 state.should_scroll_disasm = false;
@@ -170,9 +190,15 @@ impl Window for Disassembly {
                                 .enumerate()
                             {
                                 let text = if line.address == cpu.registers.pc {
-                                    format!("> {:04X} {}", line.address, line.text)
+                                    format!(
+                                        "> {:02X} {:04X} {}",
+                                        line.bank, line.address, line.text
+                                    )
                                 } else {
-                                    format!("  {:04X} {}", line.address, line.text)
+                                    format!(
+                                        "  {:02X} {:04X} {}",
+                                        line.bank, line.address, line.text
+                                    )
                                 };
 
                                 let widget_text: WidgetText =
@@ -186,29 +212,7 @@ impl Window for Disassembly {
                                         text.into()
                                     });
 
-                                let galley = widget_text.into_galley(
-                                    ui,
-                                    Some(TextWrapMode::Extend),
-                                    ui.available_width(),
-                                    TextStyle::Button,
-                                );
-                                let (rect, response) =
-                                    ui.allocate_at_least(galley.size(), Sense::click());
-                                response.widget_info(|| {
-                                    WidgetInfo::selected(
-                                        WidgetType::SelectableLabel,
-                                        ui.is_enabled(),
-                                        false,
-                                        galley.text(),
-                                    )
-                                });
-
-                                let text_pos = ui
-                                    .layout()
-                                    .align_size_within_rect(galley.size(), rect.shrink2(Vec2::ZERO))
-                                    .min;
-                                let visuals = ui.style().interact_selectable(&response, false);
-                                ui.painter().galley(text_pos, galley, visuals.text_color());
+                                let response = self.draw_line(widget_text, ui);
 
                                 let next = disassembly.iter().skip(offset + i + 1).find(|line| {
                                     matches!(line.line_type, LineType::Instruction(_))

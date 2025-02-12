@@ -1,4 +1,4 @@
-﻿pub mod licensee;
+pub mod licensee;
 
 use crate::mbc::FileBackedMBC;
 use crate::mbc::MBC;

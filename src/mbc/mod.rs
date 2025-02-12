@@ -1,4 +1,4 @@
-﻿pub mod mbc3;
+pub mod mbc3;
 pub mod mbc0;
 mod mbc1;
 

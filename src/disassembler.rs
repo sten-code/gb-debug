@@ -1,4 +1,4 @@
-﻿use std::cmp::Ordering;
+use std::cmp::Ordering;
 use std::collections::HashMap;
 
 use crate::cpu::instruction::{Instruction, JumpTest};
@@ -13,15 +13,15 @@ pub enum LineType {
 
 #[derive(Debug, Clone)]
 pub struct DisassembledLine {
+    pub bank: u8,
     pub address: u16,
     pub line_type: LineType,
     pub bytes: Vec<u8>,
     pub text: String,
 }
 
-
 pub struct Disassembler {
-    pub disassembly: Vec<Vec<DisassembledLine>>
+    pub disassembly: Vec<Vec<DisassembledLine>>,
 }
 
 impl Disassembler {
@@ -36,9 +36,10 @@ impl Disassembler {
         // High RAM
         disassembly.push(Vec::new());
 
-        Self {
-            disassembly,
-        }
+        // Other random shit
+        disassembly.push(Vec::new());
+
+        Self { disassembly }
     }
 
     pub fn reset(&mut self, cpu: &CPU) {
@@ -51,6 +52,7 @@ impl Disassembler {
         let label = format!("{}_{:04X}", name, address);
         if let Some(disassembly) = self.disassembly.get_mut(bank as usize) {
             disassembly.push(DisassembledLine {
+                bank,
                 address,
                 line_type: LineType::Label(label.clone()),
                 bytes: Vec::new(),
@@ -82,11 +84,35 @@ impl Disassembler {
         }
 
         // bank 1-7F takes 0x4000-0x7FFF, anything before that is bank 0
-        if bank > 0 && (address < 0x4000 || address > 0x7FFF) {
+        if (bank >= 1 && bank <= 0x7F) && (address < 0x4000 || address > 0x7FFF) {
+            return false;
+        }
+
+        // bank 0x80 is marked as High RAM by cpu.get_current_bank()
+        if bank == 0x80 && (address < 0xFF80 || address > 0xFFFE) {
+            return false;
+        }
+
+        if bank == 0x81 && (address < 0x8000 || address > 0xFF7F) {
             return false;
         }
 
         true
+    }
+
+    fn disassemble_jump_branch(
+        &mut self,
+        stack: &mut Vec<u16>,
+        bank: u8,
+        instruction_addr: u16,
+        jump_address: u16,
+    ) {
+        if self.is_in_bank(bank, jump_address) {
+            self.add_label("addr", bank, jump_address);
+            if !self.explored_address(bank, jump_address) && instruction_addr != jump_address {
+                stack.push(jump_address);
+            }
+        }
     }
 
     fn disassemble_branch(&mut self, bank: u8, start_addr: u16, cpu: &mut CPU) {
@@ -112,7 +138,8 @@ impl Disassembler {
                     byte = cpu.mmu.read_byte(instruction_addr.wrapping_add(1));
                     operand_addr = operand_addr.wrapping_add(1);
                 }
-                let instruction = Instruction::from_byte(byte, is_prefixed).unwrap_or(Instruction::NOP);
+                let instruction =
+                    Instruction::from_byte(byte, is_prefixed).unwrap_or(Instruction::NOP);
                 let size = instruction.size();
 
                 // Explore the branch that the jump/call instruction points to
@@ -126,12 +153,19 @@ impl Disassembler {
                                 stack.push(jump_address);
                             }
                         }
+                        self.disassemble_jump_branch(
+                            &mut stack,
+                            bank,
+                            instruction_addr,
+                            jump_address,
+                        );
                     }
                     Instruction::CALL(_) => {
                         let jump_address = cpu.mmu.read_word(operand_addr);
                         if self.is_in_bank(bank, jump_address) {
                             self.add_label("func", bank, jump_address);
-                            if !self.explored_address(bank, jump_address) && instruction_addr != jump_address
+                            if !self.explored_address(bank, jump_address)
+                                && instruction_addr != jump_address
                             {
                                 stack.push(jump_address);
                             }
@@ -155,11 +189,18 @@ impl Disassembler {
                                 stack.push(jump_address);
                             }
                         }
+                        self.disassemble_jump_branch(
+                            &mut stack,
+                            bank,
+                            instruction_addr,
+                            jump_address,
+                        );
                     }
                     Instruction::RST(vector) => {
                         let jump_address = vector as u16;
                         self.add_label("rst", bank, jump_address);
-                        if !self.explored_address(bank, jump_address) && instruction_addr != jump_address
+                        if !self.explored_address(bank, jump_address)
+                            && instruction_addr != jump_address
                         {
                             stack.push(jump_address);
                         }
@@ -181,10 +222,19 @@ impl Disassembler {
                 }
                 if let Some(disassembly) = self.disassembly.get_mut(bank as usize) {
                     disassembly.push(DisassembledLine {
+                        bank,
                         address: instruction_addr,
                         line_type: LineType::Instruction(instruction),
                         bytes: instruction_bytes,
-                        text: format!("{:<7} {}", instruction_bytes_str, instruction.to_string(instruction_arr[0], instruction_arr[1], instruction_addr)),
+                        text: format!(
+                            "{:<7} {}",
+                            instruction_bytes_str,
+                            instruction.to_string(
+                                instruction_arr[0],
+                                instruction_arr[1],
+                                instruction_addr
+                            )
+                        ),
                     });
                 }
 
@@ -220,9 +270,10 @@ impl Disassembler {
 
     pub fn remove_duplicate_labels(&mut self) {
         for disassembly in &mut self.disassembly {
-            let mut seen: HashMap<u16, bool> = HashMap::new();
+            let mut seen: HashMap<String, bool> = HashMap::new();
             disassembly.retain(|instruction| {
-                !matches!(instruction.line_type, LineType::Label(_)) || seen.insert(instruction.address, true).is_none()
+                !matches!(instruction.line_type, LineType::Label(_))
+                    || seen.insert(instruction.text.clone(), true).is_none()
             });
         }
     }
@@ -309,4 +360,3 @@ impl Disassembler {
         self.disassemble_extra(cpu, &Vec::new())
     }
 }
-

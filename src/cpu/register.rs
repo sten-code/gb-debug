@@ -1,8 +1,12 @@
-﻿use crate::gbmode::GbMode;
+use crate::gbmode::GbMode;
 
 #[inline(always)]
 fn bit(condition: bool) -> u8 {
-    if condition { 1 } else { 0 }
+    if condition {
+        1
+    } else {
+        0
+    }
 }
 
 #[inline(always)]

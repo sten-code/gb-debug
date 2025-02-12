@@ -6,15 +6,17 @@ use crate::ui::windows::{
 use crate::ui::{Pane, TreeManager};
 use audio::CpalPlayer;
 use eframe::egui;
-use eframe::egui::{CentralPanel, Stroke, TopBottomPanel};
 use eframe::epaint::Color32;
+use egui::{CentralPanel, Stroke, TopBottomPanel, Widget};
 use egui_tiles::{Container, Linear, LinearDir, Tile, Tiles};
-use io::sound::AudioPlayer;
+use std::fs::File;
+use std::io::Read;
+use std::ops::BitAndAssign;
 use std::path::PathBuf;
 use std::sync::Arc;
+use crate::io::sound::AudioPlayer;
 
 mod assembler;
-mod audio;
 mod cartridge;
 mod cpu;
 mod disassembler;
@@ -24,6 +26,7 @@ mod mbc;
 mod mmu;
 mod ppu;
 mod ui;
+mod audio;
 
 #[inline(always)]
 pub fn bit(condition: bool) -> u8 {

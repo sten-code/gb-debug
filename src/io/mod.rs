@@ -1,2 +1,2 @@
-﻿pub mod joypad;
+pub mod joypad;
 pub mod sound;

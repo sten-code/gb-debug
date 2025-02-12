@@ -1,7 +1,9 @@
-﻿use std::iter::Peekable;
-use std::str::Chars;
+use crate::cpu::instruction::{
+    DerefTarget, IncDecTarget, JumpTest, Reg16Bit, Source8Bit, StackTarget, Target8Bit,
+};
 use env_logger::Target;
-use crate::cpu::instruction::{DerefTarget, IncDecTarget, JumpTest, Reg16Bit, Source8Bit, StackTarget, Target8Bit};
+use std::iter::Peekable;
+use std::str::Chars;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Register {
@@ -174,11 +176,16 @@ impl<'a> Lexer<'a> {
             }
         }
         if hex.len() == 4 {
-            self.tokens.push(Token::Imm16(u16::from_str_radix(&hex, 16).unwrap()));
+            self.tokens
+                .push(Token::Imm16(u16::from_str_radix(&hex, 16).unwrap()));
         } else if hex.len() == 2 {
-            self.tokens.push(Token::Imm8(u8::from_str_radix(&hex, 16).unwrap()));
+            self.tokens
+                .push(Token::Imm8(u8::from_str_radix(&hex, 16).unwrap()));
         } else {
-            panic!("Invalid hex number: ${}, must be either 2 or 4 characters long.", hex);
+            panic!(
+                "Invalid hex number: ${}, must be either 2 or 4 characters long.",
+                hex
+            );
         }
     }
 
@@ -201,13 +208,19 @@ impl<'a> Lexer<'a> {
         if first_char == '-' {
             let decimal = i8::from_str_radix(&decimal, 10).unwrap();
             if decimal < -128 || decimal > 127 {
-                panic!("Signed decimal immediate must be between -128 and 127, got: {}", decimal);
+                panic!(
+                    "Signed decimal immediate must be between -128 and 127, got: {}",
+                    decimal
+                );
             }
             self.tokens.push(Token::Imm8(decimal as u8));
         } else {
             let decimal = u8::from_str_radix(&decimal, 10).unwrap();
             if decimal > 0xFF {
-                panic!("Decimal immediate must be between 0 and 255, got: {}", decimal);
+                panic!(
+                    "Decimal immediate must be between 0 and 255, got: {}",
+                    decimal
+                );
             }
             self.tokens.push(Token::Imm8(decimal));
         }
@@ -278,7 +291,8 @@ impl<'a> Lexer<'a> {
                 if self.tokens.last() == Some(&Token::Mnemonic("JP".to_owned()))
                     || self.tokens.last() == Some(&Token::Mnemonic("CALL".to_owned()))
                     || self.tokens.last() == Some(&Token::Mnemonic("JR".to_owned()))
-                    || self.tokens.last() == Some(&Token::Mnemonic("RET".to_owned())) {
+                    || self.tokens.last() == Some(&Token::Mnemonic("RET".to_owned()))
+                {
                     match identifier.as_str() {
                         "NZ" => {
                             self.tokens.push(Token::JPCondition(JPCondition::NZ));
@@ -320,7 +334,7 @@ impl<'a> Lexer<'a> {
                             self.chars.next();
                             self.tokens.push(Token::Register(Register::HLD));
                         }
-                        _ => self.tokens.push(Token::Register(Register::HL))
+                        _ => self.tokens.push(Token::Register(Register::HL)),
                     },
                     "SP" => self.tokens.push(Token::Register(Register::SP)),
                     _ => self.tokens.push(Token::Mnemonic(identifier)),

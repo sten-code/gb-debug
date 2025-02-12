@@ -1,4 +1,4 @@
-﻿use crate::ppu::{SCREEN_HEIGHT, SCREEN_WIDTH};
+use crate::ppu::{SCREEN_HEIGHT, SCREEN_WIDTH};
 use crate::ui::windows::Window;
 use crate::ui::State;
 use eframe::egui::widgets::Image;

@@ -1,4 +1,4 @@
-﻿use crate::mbc;
+use crate::mbc;
 use crate::mbc::MBC;
 use std::{io::Write, time};
 use anyhow::{Result, anyhow};
