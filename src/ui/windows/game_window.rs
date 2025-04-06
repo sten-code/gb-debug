@@ -59,15 +59,9 @@ impl GameWindow {
                 }
             }
 
-            ui.add(
-                DragValue::new(&mut self.emulation_speed)
-                    .speed(0.01)
-                    .range(0.0..=30.0),
-            );
+            ui.add(DragValue::new(&mut self.emulation_speed).speed(0.01).range(0.0..=30.0));
 
-            let fullscreen_btn = Button::new("Fullscreen")
-                .min_size([50.0, 0.0].into())
-                .ui(ui);
+            let fullscreen_btn = Button::new("Fullscreen").min_size([50.0, 0.0].into()).ui(ui);
             if fullscreen_btn.clicked() {
                 self.fullscreen = !self.fullscreen;
             }
@@ -99,7 +93,7 @@ impl Window for GameWindow {
             cpu.mmu.joypad.select = input.key_down(egui::Key::Space);
         }
 
-        if state.running {
+        if state.running && state.cpu.is_some() {
             let time_delta = self.now.elapsed().subsec_nanos() as f32 * self.emulation_speed;
             self.now = Instant::now();
             let delta = time_delta as f64 / ONE_SECOND_IN_MICROS as f64;
